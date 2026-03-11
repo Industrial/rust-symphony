@@ -83,7 +83,7 @@ This is **attempt {{ attempt }}**. A previous run may have been interrupted or f
 
 1. Read the issue and the codebase in this workspace.
 2. Implement or fix what the issue asks for.
-3. Run tests and fix any failures (`devenv shell -- cargo test`, `devenv shell -- moon run :test` as appropriate).
+3. Run tests and fix any failures (`devenv shell -- moon run :test` as appropriate).
 4. Follow project conventions (see `.cursor/rules`, `docs/`, and existing code).
 5. When done, summarize changes and any follow-ups in a comment or handoff as defined by the project's workflow.
 6. **Close this issue** when the work is complete (e.g. via `gh issue close` or the GitHub UI), so the runner stops picking it up. If you cannot close issues, add a clear "ready to close" comment so a maintainer can close it.
