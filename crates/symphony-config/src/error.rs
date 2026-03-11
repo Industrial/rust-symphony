@@ -49,6 +49,7 @@ mod tests {
       include_labels: None,
       exclude_labels: None,
       claim_label: None,
+      pr_open_label: None,
     };
     let errs = t.validate().unwrap_err();
     let e = ConfigValidationError::Tracker(errs);

@@ -554,6 +554,7 @@ mod tests {
         include_labels: None,
         exclude_labels: None,
         claim_label: None,
+        pr_open_label: None,
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),
