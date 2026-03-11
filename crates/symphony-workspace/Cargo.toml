@@ -1,0 +1,8 @@
+[package]
+name = "symphony-workspace"
+version = "0.1.0"
+edition = "2021"
+description = "Workspace path resolution and safety (SPEC §9)"
+
+[dependencies]
+symphony-domain = { path = "../symphony-domain" }
