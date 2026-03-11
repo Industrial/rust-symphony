@@ -10,8 +10,8 @@ echo "> test-coverage > cargo llvm-cov nextest"
 # These thresholds enforce high-quality test coverage across the codebase.
 # If coverage falls below 95%, add more tests - DO NOT lower these values.
 RUSTFLAGS='-D warnings' cargo llvm-cov nextest \
-  --package forge \
-  --package forge-cli \
+  --package symphony-agent \
+  --package symphony-domain \
   --fail-under-functions 95 \
   --fail-under-lines 95 \
   --fail-under-regions 95

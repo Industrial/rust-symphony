@@ -8,7 +8,7 @@
   chromium-rev = (builtins.head (builtins.filter (x: x.name == "chromium") browsers)).revision;
 in {
   # Name of the project with version
-  name = "forge";
+  name = "rust-symphony";
 
   # Languages
   languages = {
@@ -73,10 +73,10 @@ in {
 
     RUST_BACKTRACE = "1";
     CARGO_TERM_COLOR = "always";
-    # Enable SQL statement logging (forge db layer). SQL appears when FORGE_SQL_DEBUG=1 and sqlx=debug below.
-    FORGE_SQL_DEBUG = "1";
-    # Show SQL queries (sqlx) and app/forge at debug. Omit sqlx=debug to disable SQL logging.
-    RUST_LOG = "info,forge=debug,app=trace,sqlx=info";
+    # Enable SQL statement logging (rust-symphony db layer). SQL appears when RUST_SYMPHONY_SQL_DEBUG=1 and sqlx=debug below.
+    RUST_SYMPHONY_SQL_DEBUG = "1";
+    # Show SQL queries (sqlx) and app/rust-symphony at debug. Omit sqlx=debug to disable SQL logging.
+    RUST_LOG = "info,rust_symphony=debug,app=trace,sqlx=info";
 
     # Build optimization: sccache for compilation caching
     # Uses default $HOME/.cache/sccache location (no custom wrapper needed)
@@ -192,21 +192,21 @@ in {
     # Note: sccache will automatically start its server when first used
     # RUSTC_WRAPPER is already set to "sccache" in env block above
 
-    # Add forge CLI to PATH if it exists, prioritizing debug during dev
-    if [ -f ./target/debug/forge ] && [ -f ./target/release/forge ]; then
-      if [ ./target/debug/forge -nt ./target/release/forge ]; then
+    # Add rust-symphony CLI to PATH if it exists, prioritizing debug during dev
+    if [ -f ./target/debug/rust-symphony ] && [ -f ./target/release/rust-symphony ]; then
+      if [ ./target/debug/rust-symphony -nt ./target/release/rust-symphony ]; then
         export PATH="$PWD/target/debug:$PATH"
-        echo "Forge CLI (debug) available in PATH"
+        echo "rust-symphony CLI (debug) available in PATH"
       else
         export PATH="$PWD/target/release:$PATH"
-        echo "Forge CLI (release) available in PATH"
+        echo "rust-symphony CLI (release) available in PATH"
       fi
-    elif [ -f ./target/debug/forge ]; then
+    elif [ -f ./target/debug/rust-symphony ]; then
       export PATH="$PWD/target/debug:$PATH"
-      echo "Forge CLI (debug) available in PATH"
-    elif [ -f ./target/release/forge ]; then
+      echo "rust-symphony CLI (debug) available in PATH"
+    elif [ -f ./target/release/rust-symphony ]; then
       export PATH="$PWD/target/release:$PATH"
-      echo "Forge CLI (release) available in PATH"
+      echo "rust-symphony CLI (release) available in PATH"
     fi
   '';
 }

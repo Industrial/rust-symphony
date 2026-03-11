@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Monorepo runner: build forge-cli, forge new into .tmp, then run the generated project's bin/test-e2e.
-# The actual test logic lives in crates/forge-cli/templates/default/bin/test-e2e (run from project root).
+# Monorepo runner: build symphony-agent, rust-symphony new into .tmp, then run the generated project's bin/test-e2e.
+# The actual test logic lives in crates/symphony-agent/templates/default/bin/test-e2e (run from project root).
 
 PREBUILT=".tmp/e2e_prebuilt"
 ROOT="$(pwd)"
@@ -12,11 +12,11 @@ echo "> test-e2e"
 mkdir -p .tmp
 rm -rf .tmp/e2e_prebuilt
 
-echo "> test-e2e > building forge CLI"
-cargo build -p forge-cli
+echo "> test-e2e > building rust-symphony CLI"
+cargo build -p symphony-agent
 
-echo "> test-e2e > forge new e2e_prebuilt in .tmp"
-(cd .tmp && FORGE_TEMPLATES_DIR="$ROOT/crates/forge-cli/templates" "$ROOT/target/debug/forge" new e2e_prebuilt)
+echo "> test-e2e > rust-symphony new e2e_prebuilt in .tmp"
+(cd .tmp && RUST_SYMPHONY_TEMPLATES_DIR="$ROOT/crates/symphony-agent/templates" "$ROOT/target/debug/symphony-agent" new e2e_prebuilt)
 
 # Use repo target dir so .tmp is not written (e.g. noexec)
 export CARGO_TARGET_DIR="$ROOT/target/e2e_prebuilt"

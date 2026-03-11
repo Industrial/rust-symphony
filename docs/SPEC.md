@@ -341,7 +341,7 @@ Note:
 GitHub Issues is the supported issue tracker. Fields:
 
 - `repo` (string)
-  - Required for dispatch. Repository in `owner/repo` form (e.g. `Industrial/forge`).
+  - Required for dispatch. Repository in `owner/repo` form (e.g. `Industrial/rust-symphony`).
 - `api_key` (string)
   - Required. GitHub token or `$VAR_NAME`. Canonical environment variable: `GITHUB_TOKEN`.
   - If `$VAR_NAME` resolves to an empty string, treat the key as missing.
@@ -1131,7 +1131,7 @@ An implementation must support these tracker adapter operations:
 | Normalized field | GitHub source |
 |------------------|----------------|
 | `id` | `node_id` (preferred) or string of numeric `id` |
-| `identifier` | Human-readable: `{owner}/{repo}#{number}` (e.g. `Industrial/forge#42`) |
+| `identifier` | Human-readable: `{owner}/{repo}#{number}` (e.g. `Industrial/rust-symphony#42`) |
 | `title` | `title` |
 | `description` | `body` (string or null) |
 | `priority` | Not native; use null or map from labels if extension defined |

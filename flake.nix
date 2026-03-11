@@ -36,33 +36,33 @@
         else null;
       cargo2nixPackage =
         if rustPkgs != null
-        then rustPkgs.workspace.forge {}
+        then rustPkgs.workspace.rust-symphony {}
         else null;
     in {
       packages = let
-        forgePkg = pkgs.rustPlatform.buildRustPackage {
-          pname = "forge";
+        rustSymphonyPkg = pkgs.rustPlatform.buildRustPackage {
+          pname = "rust-symphony";
           version = "0.1.0";
           src = self;
           cargoLock.lockFile = self + "/Cargo.lock";
           nativeBuildInputs = [pkgs.pkg-config];
           buildInputs = [pkgs.openssl];
-          cargoBuildFlags = ["--bin" "forge"];
+          cargoBuildFlags = ["--bin" "symphony-agent"];
           installPhase = ''
             runHook preInstall
-            # Build the forge binary from the forge-cli crate
-            cargo build --release --bin forge
+            # Build the rust-symphony binary from the symphony-agent crate
+            cargo build --release --bin symphony-agent
             mkdir -p $out/bin
-            cp target/release/forge $out/bin/forge
+            cp target/release/symphony-agent $out/bin/rust-symphony
             runHook postInstall
           '';
         };
       in
         {
-          forge = forgePkg;
-          default = forgePkg;
+          "rust-symphony" = rustSymphonyPkg;
+          default = rustSymphonyPkg;
           # buildRustPackage (always available)
-          buildRustPackage = forgePkg;
+          buildRustPackage = rustSymphonyPkg;
         }
         // pkgs.lib.optionalAttrs (cargo2nixPackage != null) {
           # cargo2nix workspace package (requires Cargo.nix in repo)
@@ -72,7 +72,7 @@
       apps = {
         default = {
           type = "app";
-          program = "${self.packages.${system}.default}/bin/forge";
+          program = "${self.packages.${system}.default}/bin/rust-symphony";
         };
         # Generate Cargo.nix (run once, then commit Cargo.nix)
         generate = {

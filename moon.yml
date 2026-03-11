@@ -46,7 +46,7 @@ tasks:
       - '**/*.rs'
     options:
       outputStyle: buffer-only-failure
-  # # Integration tests: forge new then run template bin/test-integration
+  # # Integration tests: rust-symphony new then run template bin/test-integration
   # test-integration:
   #   command: 'bash'
   #   args: ['bin/test-integration']
@@ -55,8 +55,8 @@ tasks:
   #     - 'Cargo.toml'
   #     - 'Cargo.lock'
   #     - 'crates/**/*.rs'
-  #     - 'crates/forge-cli/templates/**/*'
-  # # E2E tests: forge new then run template bin/test-e2e (Playwright in templates/default/test/e2e)
+  #     - 'crates/symphony-agent/templates/**/*'
+  # # E2E tests: rust-symphony new then run template bin/test-e2e (Playwright in templates/default/test/e2e)
   # test-e2e:
   #   command: 'bash'
   #   args: ['bin/test-e2e']
@@ -65,7 +65,7 @@ tasks:
   #     - 'Cargo.toml'
   #     - 'Cargo.lock'
   #     - 'crates/**/*.rs'
-  #     - 'crates/forge-cli/templates/**/*'
+  #     - 'crates/symphony-agent/templates/**/*'
   # # Monorepo check (tsgo + Biome at root)
   # check:
   #   deps: ['~:format']

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Monorepo runner: build forge-cli, forge new into .tmp, then run the generated project's bin/test-integration.
-# The actual test logic lives in crates/forge-cli/templates/default/bin/test-integration (run from project root).
+# Monorepo runner: build symphony-agent, rust-symphony new into .tmp, then run the generated project's bin/test-integration.
+# The actual test logic lives in crates/symphony-agent/templates/default/bin/test-integration (run from project root).
 
 PREBUILT=".tmp/integration_prebuilt"
 ROOT="$(pwd)"
@@ -12,11 +12,11 @@ echo "> test-integration"
 mkdir -p .tmp
 rm -rf .tmp/integration_prebuilt
 
-echo "> test-integration > building forge CLI"
-cargo build -p forge-cli
+echo "> test-integration > building rust-symphony CLI"
+cargo build -p symphony-agent
 
-echo "> test-integration > forge new integration_prebuilt in .tmp"
-(cd .tmp && FORGE_TEMPLATES_DIR="$ROOT/crates/forge-cli/templates" "$ROOT/target/debug/forge" new integration_prebuilt)
+echo "> test-integration > rust-symphony new integration_prebuilt in .tmp"
+(cd .tmp && RUST_SYMPHONY_TEMPLATES_DIR="$ROOT/crates/symphony-agent/templates" "$ROOT/target/debug/symphony-agent" new integration_prebuilt)
 
 # Use repo target dir so .tmp is not written (e.g. noexec)
 export CARGO_TARGET_DIR="$ROOT/target/integration_prebuilt"
