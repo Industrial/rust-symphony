@@ -1,0 +1,39 @@
+name: CI
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: sccache
+permissions:
+  contents: read
+jobs:
+  ci:
+    name: CI (checks → integration → e2e)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/checkout
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 1 }}
+      - uses: ./.github/actions/setup-nix-devenv
+      - uses: ./.github/actions/setup-sccache
+      - uses: ./.github/actions/setup-mold
+      - uses: ./.github/actions/setup-moon
+      - name: Run checks (format, check, build, test, audit, check-docs)
+        uses: ./.github/actions/run-devenv-moon
+        with:
+          targets: ":format :check :build :test :audit :check-docs"
+          use-affected: "true"
+      - name: Run integration tests
+        uses: ./.github/actions/run-devenv-moon
+        with:
+          targets: ":test-integration"
+          use-affected: "true"
+      - name: Run e2e tests
+        uses: ./.github/actions/run-devenv-moon
+        with:
+          targets: ":test-e2e"
+          use-affected: "true"
+      - uses: ./.github/actions/sccache-stats

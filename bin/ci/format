@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+treefmt \
+  --config-file treefmt.ci.toml

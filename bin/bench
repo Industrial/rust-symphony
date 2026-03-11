@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec > >(tee log/bench.log) 2>&1 
+
+echo "> bench"
+
+# Check if benches directory exists
+if [ ! -d "benches" ]; then
+    echo "> bench > no benches directory found"
+    echo "> bench > done"
+    exit 0
+fi
+
+echo "> bench > building benchmarks"
+cargo build --release --benches || {
+    echo "> bench > warning: failed to build benchmarks (may not exist)"
+    exit 0
+}
+
+# Run all benchmarks using cargo bench
+# This will automatically discover and run all benchmarks in the benches/ directory
+# cargo bench always runs in release mode by default
+echo "> bench > running all benchmarks"
+cargo bench || {
+    echo "> bench > warning: failed to run benchmarks"
+    exit 0
+}
+
+echo "> bench > done"

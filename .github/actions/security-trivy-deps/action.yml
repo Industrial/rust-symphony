@@ -1,0 +1,20 @@
+# Run Trivy config/dependency scan (table output).
+name: "Security Trivy deps"
+description: "Trivy config and dependency scan"
+inputs:
+  severity:
+    description: "Severities to fail on"
+    required: false
+    default: "CRITICAL,HIGH"
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Run Trivy dependency/config scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: "config"
+        scan-ref: "."
+        severity: ${{ inputs.severity }}
+        exit-code: "1"
+        format: "table"

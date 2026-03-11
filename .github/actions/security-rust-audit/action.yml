@@ -1,0 +1,25 @@
+# Run cargo-audit and cargo-deny. Expects Rust toolchain and rust-cache already set up.
+name: "Security Rust audit"
+description: "Run cargo-audit and cargo-deny"
+inputs:
+  audit-allow:
+    description: "Advisory ID to allow (matches deny.toml); empty = none"
+    required: false
+    default: "RUSTSEC-2023-0071"
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+    - name: Run cargo-audit
+      run: |
+        if [ -n "${{ inputs.audit-allow }}" ]; then
+          cargo audit --allow ${{ inputs.audit-allow }}
+        else
+          cargo audit
+        fi
+    - name: Install cargo-deny
+      run: cargo install cargo-deny
+    - name: Run cargo-deny
+      run: cargo deny check

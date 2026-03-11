@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+# Handle SIGINT (Ctrl+C) properly
+trap 'echo ""; echo "🛑 Interrupted by user"; exit 130' INT
+
+# test-examples: Run all Cargo examples and fail if any fail
+# Usage: ./bin/test-examples
+
+echo "🔍 Discovering examples from Cargo.toml..."
+
+# Extract example names from Cargo.toml
+examples=$(grep -A1 '^\[\[example\]\]' Cargo.toml | grep '^name =' | sed 's/name = "//;s/"$//' | sort)
+
+if [ -z "$examples" ]; then
+    echo "❌ No examples found in Cargo.toml"
+    exit 1
+fi
+
+# Convert newlines to spaces for counting and display
+example_list=$(echo "$examples" | tr '\n' ' ')
+example_count=$(echo "$examples" | wc -l)
+echo "📋 Found $example_count examples: $example_list"
+
+# Run each example
+passed=0
+failed=0
+timed_out=0
+
+# Create a temporary file to store results
+temp_results=$(mktemp)
+echo "0 0 0" > "$temp_results"  # passed failed timed_out
+
+echo "$examples" | while IFS= read -r example; do
+    printf "🧪 Running example '%s'... " "$example"
+
+    # Run the example with 10 second timeout (interruptible with Ctrl+C)
+    if timeout 20 cargo run --example "$example" >/dev/null 2>&1; then
+        echo "✅ PASSED"
+        # Update counters in temp file
+        awk '{print $1+1, $2, $3}' "$temp_results" > "${temp_results}.new" && mv "${temp_results}.new" "$temp_results"
+    else
+        exit_code=$?
+        if [ "$exit_code" -eq 124 ]; then
+            echo "⏱️  TIMED OUT (faulty)"
+            # Update counters in temp file
+            awk '{print $1, $2, $3+1}' "$temp_results" > "${temp_results}.new" && mv "${temp_results}.new" "$temp_results"
+        else
+            echo "❌ FAILED"
+            # Update counters in temp file
+            awk '{print $1, $2+1, $3}' "$temp_results" > "${temp_results}.new" && mv "${temp_results}.new" "$temp_results"
+        fi
+    fi
+done
+
+# Read final results
+read -r passed failed timed_out < "$temp_results"
+rm "$temp_results"
+
+echo ""
+echo "📊 Test Results:"
+echo "   ✅ Passed: $passed"
+echo "   ❌ Failed: $failed"
+echo "   ⏱️  Timed Out (faulty): $timed_out"
+echo "   📈 Total:  $((passed + failed + timed_out))"
+
+if [ "$failed" -gt 0 ] || [ "$timed_out" -gt 0 ]; then
+    echo ""
+    if [ "$timed_out" -gt 0 ]; then
+        echo "⚠️  $timed_out example(s) timed out (considered faulty)"
+    fi
+    if [ "$failed" -gt 0 ]; then
+        echo "❌ $failed example(s) failed"
+    fi
+    exit 1
+else
+    echo ""
+    echo "🎉 All $passed examples passed!"
+fi

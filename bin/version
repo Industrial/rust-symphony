@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Bump version across all packages
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+cd "$PROJECT_DIR"
+
+VERSION="$1"
+
+if [ -z "$VERSION" ]; then
+    echo "Usage: bin/version <new-version>"
+    echo ""
+    echo "Example: bin/version 0.3.1"
+    exit 1
+fi
+
+# Validate version format (basic check)
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+    echo "❌ Error: Invalid version format. Expected format: X.Y.Z (e.g., 0.3.1)"
+    exit 1
+fi
+
+echo "📦 Updating version to $VERSION across all packages..."
+
+# Update workspace version in root Cargo.toml
+sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+
+# Update all package Cargo.toml files
+find packages -name Cargo.toml -exec sed -i "s/^version = .*/version = \"$VERSION\"/" {} \;
+
+echo "✅ Version updated to $VERSION"
+echo ""
+echo "Next steps:"
+echo "1. Review the changes: git diff"
+echo "2. Commit the changes: git add . && git commit -m \"Bump version to $VERSION\""
+echo "3. Publish: ./bin/publish"

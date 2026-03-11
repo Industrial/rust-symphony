@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "> pre-push (using moon)"
+
+# Kill any hanging moon/cargo processes (ignore if none exist)
+killall -9 moon 2>/dev/null || true
+killall -9 cargo 2>/dev/null || true
+
+# Run moon tasks for pre-push validation
+# MOON_TOOLCHAIN_FORCE_GLOBALS is set in devenv.nix, but ensure it's set here too
+export MOON_TOOLCHAIN_FORCE_GLOBALS=rust
+devenv shell -- moon run :format :check :lint :build :test :audit :check-docs
+
+echo "✅ Pre-push checks passed"

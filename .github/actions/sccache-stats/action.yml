@@ -1,0 +1,11 @@
+# Show sccache statistics (run with if: always() to see stats even on failure).
+name: "Sccache stats"
+description: "Show sccache statistics"
+inputs: {}
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Show sccache statistics
+      if: always()
+      run: sccache --show-stats

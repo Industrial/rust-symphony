@@ -1,0 +1,1 @@
+Use the MUI MCP Server to know about MaterialUI components and documentation.

@@ -1,0 +1,44 @@
+# Configuration for cargo-nextest test runner
+# See https://nexte.st/book/config/ for full documentation
+
+[profile.default]
+# Retry flaky tests up to 3 times
+retries = 3
+# Fail fast after 5 test failures
+fail-fast = 5
+# Test timeout: 60 seconds per test
+test-timeout = "60s"
+# Slow test threshold: warn if a test takes longer than 5 seconds
+slow-timeout = "5s"
+
+# Enable test result caching
+cache = true
+
+# Output configuration
+[profile.default.output]
+status = "all"
+failure-output = "immediate"
+success-output = "immediate"
+
+# Test execution
+[profile.default.run]
+# Run tests in parallel (default: number of CPU cores)
+threads = "auto"
+# Capture test output
+capture-output = true
+
+# CI profile: more verbose, stricter
+[profile.ci]
+retries = 1
+fail-fast = 1
+test-timeout = "120s"
+slow-timeout = "10s"
+
+[profile.ci.output]
+status = "all"
+failure-output = "immediate"
+success-output = "none"
+
+[profile.ci.run]
+threads = "auto"
+capture-output = true

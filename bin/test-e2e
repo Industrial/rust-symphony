@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Monorepo runner: build forge-cli, forge new into .tmp, then run the generated project's bin/test-e2e.
+# The actual test logic lives in crates/forge-cli/templates/default/bin/test-e2e (run from project root).
+
+PREBUILT=".tmp/e2e_prebuilt"
+ROOT="$(pwd)"
+
+echo "> test-e2e"
+
+mkdir -p .tmp
+rm -rf .tmp/e2e_prebuilt
+
+echo "> test-e2e > building forge CLI"
+cargo build -p forge-cli
+
+echo "> test-e2e > forge new e2e_prebuilt in .tmp"
+(cd .tmp && FORGE_TEMPLATES_DIR="$ROOT/crates/forge-cli/templates" "$ROOT/target/debug/forge" new e2e_prebuilt)
+
+# Use repo target dir so .tmp is not written (e.g. noexec)
+export CARGO_TARGET_DIR="$ROOT/target/e2e_prebuilt"
+mkdir -p "$CARGO_TARGET_DIR"
+
+echo "> test-e2e > running project bin/test-e2e"
+(cd "$ROOT/$PREBUILT" && CARGO_TARGET_DIR="$CARGO_TARGET_DIR" bash bin/test-e2e)
+echo "> test-e2e > done"

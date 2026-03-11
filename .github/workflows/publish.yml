@@ -1,0 +1,292 @@
+name: 🚀 Release & Publish
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+" # v1.2.3
+      - "v[0-9]+.[0-9]+.[0-9]+-*" # v1.2.3-beta.1
+# Only one release at a time
+concurrency:
+  group: release
+  cancel-in-progress: false
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Build optimization: sccache for compilation caching
+  RUSTC_WRAPPER: sccache
+jobs:
+  # =============================================================================
+  # VALIDATE
+  # =============================================================================
+  validate:
+    name: 🔍 Validate Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=${TAG}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${TAG}" == *"-"* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "📦 Prerelease version: ${TAG}"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "📦 Release version: $TAG"
+          fi
+      - name: Verify version matches Cargo.toml
+        run: |
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d '"' -f 2)
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+
+          echo "📋 Tag version: $TAG_VERSION"
+          echo "📋 Cargo.toml version: $CARGO_VERSION"
+
+          if [[ "$CARGO_VERSION" != "$TAG_VERSION" ]]; then
+            echo "❌ Version mismatch!"
+            echo "   Tag: v$TAG_VERSION"
+            echo "   Cargo.toml: $CARGO_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Versions match!"
+  # =============================================================================
+  # BUILD & TEST
+  # =============================================================================
+  build:
+    name: 🔨 Build & Test
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      # Setup sccache for compilation caching
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.4
+        with:
+          version: "latest"
+        env:
+          SCCACHE_DIR: ${{ runner.tool_cache }}/sccache
+      # Install mold linker for faster linking on Linux
+      - name: Install mold linker (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Install moon
+        run: |
+          curl -fsSL https://moonrepo.dev/install/moon.sh | bash
+          export PATH="$HOME/.moon/bin:$PATH"
+          moon --version
+      - name: Check formatting
+        env:
+          MOON_TOOLCHAIN_FORCE_GLOBALS: rust
+        run: |
+          export PATH="$HOME/.moon/bin:$PATH"
+          moon run :format
+      - name: Run clippy
+        env:
+          MOON_TOOLCHAIN_FORCE_GLOBALS: rust
+        run: |
+          export PATH="$HOME/.moon/bin:$PATH"
+          moon run :check
+      - name: Run tests
+        env:
+          MOON_TOOLCHAIN_FORCE_GLOBALS: rust
+        run: |
+          export PATH="$HOME/.moon/bin:$PATH"
+          moon run :test
+      - name: Build release
+        env:
+          MOON_TOOLCHAIN_FORCE_GLOBALS: rust
+        run: |
+          export PATH="$HOME/.moon/bin:$PATH"
+          moon run :build
+          cargo build --release --all-features
+      # Show sccache statistics
+      - name: Show sccache statistics
+        if: always()
+        run: sccache --show-stats
+      - name: Verify package
+        run: cargo publish --dry-run
+  # =============================================================================
+  # PUBLISH TO CRATES.IO
+  # =============================================================================
+  publish:
+    name: 📤 Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: [validate, build]
+    permissions:
+      contents: read
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/forge
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          echo "🚀 Publishing v${{ needs.validate.outputs.version }} to crates.io..."
+          cargo publish
+          echo "✅ Published successfully!"
+  # =============================================================================
+  # CREATE GITHUB RELEASE
+  # =============================================================================
+  release:
+    name: 🎉 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate, publish]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          {
+            echo "## What's Changed"
+            echo ""
+            if [[ -n "${PREV_TAG}" ]]; then
+              echo "Changes since ${PREV_TAG}:"
+              echo ""
+              git log --pretty=format:"* %s (%h)" "${PREV_TAG}"..HEAD
+            else
+              echo "Initial release! 🎉"
+            fi
+            echo ""
+            echo ""
+            echo "---"
+            echo ""
+          } > CHANGELOG.md
+          {
+            echo "📦 **Install the CLI (one-liner):**"
+            echo '```bash'
+            echo "curl -fsSL https://raw.githubusercontent.com/Industrial/forge/main/install.sh | sh"
+            echo '```'
+            echo ""
+            echo "📦 **Or from crates.io:**"
+            echo '```toml'
+            echo '[dependencies]'
+            echo 'forge = "${{ needs.validate.outputs.version }}"'
+            echo '```'
+            echo ""
+            echo "📚 **Documentation:** [docs.rs/forge](https://docs.rs/forge)"
+          } >> CHANGELOG.md
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ needs.validate.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+          make_latest: ${{ needs.validate.outputs.is_prerelease != 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # =============================================================================
+  # BUILD & UPLOAD RELEASE BINARIES
+  # =============================================================================
+  build-binaries:
+    name: 📦 Binaries (${{ matrix.target }})
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: forge
+          package: forge-cli
+          target: ${{ matrix.target }}
+          archive: forge-${{ github.ref_name }}-${{ matrix.target }}
+          tar: unix
+          zip: windows
+          token: ${{ secrets.GITHUB_TOKEN }}
+  # =============================================================================
+  # PUBLISH DOCUMENTATION
+  # =============================================================================
+  docs:
+    name: 📚 Publish Documentation
+    runs-on: ubuntu-latest
+    needs: [validate, publish]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      # Setup sccache for compilation caching
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.4
+        with:
+          version: "latest"
+        env:
+          SCCACHE_DIR: ${{ runner.tool_cache }}/sccache
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Generate documentation
+        run: |
+          echo "📚 Generating documentation..."
+          cargo doc --all-features --no-deps
+      # Show sccache statistics
+      - name: Show sccache statistics
+        if: always()
+        run: sccache --show-stats
+  # =============================================================================
+  # RELEASE COMPLETE
+  # =============================================================================
+  notify:
+    name: 📢 Release Complete
+    runs-on: ubuntu-latest
+    needs: [validate, publish, release, docs]
+    if: always()
+    steps:
+      - name: Check release status
+        run: |
+          if [[ "${{ needs.publish.result }}" != "success" ]]; then
+            echo "❌ Release failed at publish step"
+            exit 1
+          fi
+
+          echo "🎉 forge v${{ needs.validate.outputs.version }} released!"
+          echo ""
+          echo "📦 crates.io: https://crates.io/crates/forge/${{ needs.validate.outputs.version }}"
+          echo "📚 docs.rs: https://docs.rs/forge/${{ needs.validate.outputs.version }}"

@@ -1,0 +1,14 @@
+# Setup sccache for Rust compilation caching.
+name: "Setup sccache"
+description: "Setup sccache for Rust build cache"
+inputs: {}
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Setup sccache
+      uses: mozilla-actions/sccache-action@v0.0.4
+      with:
+        version: "latest"
+      env:
+        SCCACHE_DIR: ${{ runner.tool_cache }}/sccache

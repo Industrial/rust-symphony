@@ -1,0 +1,53 @@
+# Open-source security suite: secrets, deps, SAST. Runs on PR and push to main/develop.
+name: Security
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+jobs:
+  gitleaks:
+    name: 🔐 Secrets (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/security-gitleaks
+  trivy-fs:
+    name: 🔍 Trivy (filesystem)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/checkout
+      - uses: ./.github/actions/security-trivy-fs
+  trivy-deps:
+    name: 📦 Trivy (dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/checkout
+      - uses: ./.github/actions/security-trivy-deps
+  semgrep:
+    name: 🛡️ SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/checkout
+      - uses: ./.github/actions/security-semgrep
+  rust-audit:
+    name: 🦀 Rust (cargo-audit + cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/checkout
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/security-rust-audit
+        with:
+          audit-allow: "RUSTSEC-2023-0071"

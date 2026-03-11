@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+if [ $# -eq 0 ]; then
+  echo "Usage: bin/loop-cursor-agent <prompt-string>"
+  echo "Example: bin/loop-cursor-agent \"Implement feature X\""
+  exit 1
+fi
+
+PROMPT="$*"
+CURSOR_AGENT="/run/current-system/sw/bin/cursor-agent"
+CMD="$CURSOR_AGENT --force --approve-mcps --model auto --force --workspace . --print --output-format stream-json --stream-partial-output \"$PROMPT\""
+
+echo "> loop-cursor-agent: $PROMPT"
+echo "Press Ctrl+C to stop"
+echo ""
+
+trap 'echo ""; echo "> Stopped"; exit 0' INT TERM
+
+while true; do
+  if eval "$CMD"; then
+    EXIT_CODE=0
+  else
+    EXIT_CODE=$?
+  fi
+  
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "> Command failed with exit code $EXIT_CODE"
+    echo "> Retrying in 2 seconds... (Ctrl+C to stop)"
+    sleep 2
+  else
+    sleep 0.1
+  fi
+done

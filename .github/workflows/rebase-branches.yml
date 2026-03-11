@@ -1,0 +1,95 @@
+name: Rebase Behind Branches
+on:
+  push:
+    branches:
+      - main
+jobs:
+  rebase-branches:
+    name: 🔄 Rebase Behind Branches
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # Fetch all history for proper branch analysis
+      - name: Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Find and rebase behind branches
+        run: |-
+          # Get the current commit hash of main
+          MAIN_COMMIT=$(git rev-parse HEAD)
+          echo "Main branch is at commit: $MAIN_COMMIT"
+
+          # Get all remote branches except main and HEAD
+          BRANCHES=$(git branch -r | grep -v "origin/main" | grep -v "origin/HEAD" | sed 's|origin/||')
+
+          echo "Checking branches: $BRANCHES"
+
+          for branch in $BRANCHES; do
+            echo "=== Checking branch: $branch ==="
+
+            # Check if branch exists and is behind main
+            if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+              # Check if this branch is behind main
+              BEHIND_COUNT=$(git rev-list --count "origin/$branch..origin/main")
+              AHEAD_COUNT=$(git rev-list --count "origin/main..origin/$branch")
+
+              echo "Branch $branch: $BEHIND_COUNT commits behind, $AHEAD_COUNT commits ahead"
+
+              if [ "$BEHIND_COUNT" -gt 0 ] && [ "$AHEAD_COUNT" -eq 0 ]; then
+                echo "Branch $branch is behind main and has no unique commits. Skipping rebase."
+                continue
+              fi
+
+              if [ "$BEHIND_COUNT" -gt 0 ]; then
+                echo "Branch $branch needs rebasing ($BEHIND_COUNT commits behind)"
+
+                # Checkout the branch
+                if git checkout "$branch" 2>/dev/null; then
+                  echo "Checked out branch $branch"
+
+                  # Attempt to rebase
+                  if git rebase "origin/main"; then
+                    echo "Successfully rebased $branch"
+
+                    # Force push the rebased branch
+                    if git push --force-with-lease origin "$branch"; then
+                      echo "✅ Successfully force-pushed rebased branch $branch"
+                    else
+                      echo "❌ Failed to push branch $branch"
+                      # Try without lease if it fails
+                      if git push --force origin "$branch"; then
+                        echo "✅ Successfully force-pushed $branch (without lease)"
+                      else
+                        echo "❌ Still failed to push branch $branch"
+                      fi
+                    fi
+                  else
+                    echo "❌ Rebase failed for branch $branch"
+                    # Abort the rebase
+                    git rebase --abort
+                    # Check out main again
+                    git checkout main
+                    continue
+                  fi
+
+                  # Go back to main for the next iteration
+                  git checkout main
+                else
+                  echo "❌ Failed to checkout branch $branch"
+                fi
+              else
+                echo "Branch $branch is up to date with main"
+              fi
+            else
+              echo "Branch $branch does not exist in remote"
+            fi
+
+            echo ""
+          done
+
+          echo "🎉 Branch rebase check completed!"

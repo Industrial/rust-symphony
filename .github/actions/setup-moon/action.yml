@@ -1,0 +1,26 @@
+# Install moon and optionally restore/cache .moon/cache.
+name: "Setup moon"
+description: "Install moon and optionally cache"
+inputs:
+  cache:
+    description: "Whether to use actions/cache for .moon/cache"
+    required: false
+    default: "true"
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Install moon
+      run: |
+        curl -fsSL https://moonrepo.dev/install/moon.sh | bash
+        echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+        echo "PATH=$HOME/.moon/bin:$PATH" >> "$GITHUB_ENV"
+        moon --version
+    - name: Cache moon
+      if: inputs.cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: .moon/cache
+        key: moon-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'crates/forge-cli/templates/default/frontend/bun.lockb', 'crates/forge-cli/templates/default/frontend/package.json') }}
+        restore-keys: |
+          moon-${{ runner.os }}-

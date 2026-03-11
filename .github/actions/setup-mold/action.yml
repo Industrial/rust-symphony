@@ -1,0 +1,12 @@
+# Install mold linker for faster linking on Linux.
+name: "Setup mold linker"
+description: "Install mold linker (Linux)"
+inputs: {}
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Install mold linker
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y mold

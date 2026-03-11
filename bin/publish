@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Publish packages in dependency order
+# Packages are listed in order from most basic (no dependencies) to most complex (many dependencies)
+
+set -euo pipefail
+exec > >(tee log/publish.log) 2>&1 
+
+echo "> publish"
+cargo publish

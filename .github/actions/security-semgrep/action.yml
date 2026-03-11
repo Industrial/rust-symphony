@@ -1,0 +1,16 @@
+# Run Semgrep SAST. Use config "p/default" (free) or "auto" with SEMGREP_APP_TOKEN.
+name: "Security Semgrep"
+description: "Run Semgrep SAST"
+inputs:
+  config:
+    description: "Semgrep config (e.g. p/default or auto)"
+    required: false
+    default: "p/default"
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Run Semgrep
+      uses: semgrep/semgrep-action@v1
+      with:
+        config: ${{ inputs.config }}

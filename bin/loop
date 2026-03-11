@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -eq 0 ]; then
+  echo "Usage: bin/loop <command> [args...]"
+  echo "Example: bin/loop cargo test"
+  echo "Example: bin/loop cargo check --all-features"
+  exit 1
+fi
+
+# If only one argument is provided and it contains spaces, treat it as a command to eval
+if [ $# -eq 1 ] && [[ "$1" == *" "* ]]; then
+  CMD="$1"
+  echo "> loop: $CMD"
+  echo "Press Ctrl+C to stop"
+  echo ""
+  trap 'echo ""; echo "> Stopped"; exit 0' INT TERM
+  while true; do
+    eval "$CMD"
+  done
+else
+  echo "> loop: $(echo "$@")"
+  echo "Press Ctrl+C to stop"
+  echo ""
+  trap 'echo ""; echo "> Stopped"; exit 0' INT TERM
+  while true; do
+    "$@"
+    # EXIT_CODE=$?
+    # if [ $EXIT_CODE -ne 0 ]; then
+    #     echo ""
+    #     echo "> Command failed with exit code $EXIT_CODE"
+    #     echo "> Restarting in 2 seconds... (Ctrl+C to stop)"
+    #     # sleep 2
+    # else
+    #     sleep 0.1
+    # fi
+  done
+fi
+

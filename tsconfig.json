@@ -1,0 +1,4 @@
+{
+  "extends": "./packages/typescript-setup/tsconfig.base.json",
+  "files": []
+}

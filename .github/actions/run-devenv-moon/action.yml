@@ -1,0 +1,27 @@
+# Run moon targets inside devenv shell, with optional --affected for PRs.
+name: "Run devenv moon"
+description: "Run moon commands in devenv (optionally --affected on PRs)"
+inputs:
+  targets:
+    description: "Space-separated moon targets (e.g. ':format :check :lint')"
+    required: true
+  use-affected:
+    description: "If true, use --affected on pull_request"
+    required: false
+    default: "true"
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Run moon (devenv)
+      env:
+        MOON_TOOLCHAIN_FORCE_GLOBALS: rust
+        MOON_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+        MOON_HEAD: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+        if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ inputs.use-affected }}" = "true" ]; then
+          devenv shell -- moon run --affected ${{ inputs.targets }}
+        else
+          devenv shell -- moon run ${{ inputs.targets }}
+        fi

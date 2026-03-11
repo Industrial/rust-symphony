@@ -1,0 +1,27 @@
+# Run Trivy filesystem scan and upload SARIF to Code Scanning.
+name: "Security Trivy FS"
+description: "Trivy filesystem scan (SARIF)"
+inputs:
+  severity:
+    description: "Severities to fail on"
+    required: false
+    default: "CRITICAL,HIGH"
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Run Trivy filesystem scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: "fs"
+        scan-ref: "."
+        severity: ${{ inputs.severity }}
+        exit-code: "1"
+        format: "sarif"
+        output: "trivy-fs-results.sarif"
+    - name: Upload Trivy FS SARIF
+      if: always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: "trivy-fs-results.sarif"
+        category: "trivy-fs"

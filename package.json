@@ -1,0 +1,28 @@
+{
+  "name": "forge",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "check": "tsgo -b --noEmit && biome check --unsafe --write .",
+    "test": "bun test ./packages/**/*.test.ts ./packages/**/*.test.tsx ./crates/**/*.test.ts ./crates/**/*.test.tsx --passWithNoTests"
+  },
+  "dependencies": {
+    "@effect/platform": "^0.75.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.13.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@typescript/native-preview": "^7.0.0-dev",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec > >(tee log/test-coverage.log) 2>&1 
+
+echo "> test-coverage"
+
+echo "> test-coverage > cargo llvm-cov nextest"
+
+# COVERAGE THRESHOLDS - UNDER NO CIRCUMSTANCES MAY THESE BE LOWERED BELOW 95%.
+# These thresholds enforce high-quality test coverage across the codebase.
+# If coverage falls below 95%, add more tests - DO NOT lower these values.
+RUSTFLAGS='-D warnings' cargo llvm-cov nextest \
+  --package forge \
+  --package forge-cli \
+  --fail-under-functions 95 \
+  --fail-under-lines 95 \
+  --fail-under-regions 95

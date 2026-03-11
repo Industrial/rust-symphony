@@ -1,0 +1,12 @@
+# Run Gitleaks secret detection. Requires fetch-depth: 0 for full history.
+name: "Security Gitleaks"
+description: "Run Gitleaks for secret detection"
+inputs: {}
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Run Gitleaks
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

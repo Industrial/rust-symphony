@@ -1,0 +1,21 @@
+# prek (https://github.com/j178/prek) — pre-commit–compatible config
+# Install hooks: prek install   (or they install on devenv enterShell)
+default_install_hook_types: [pre-push, commit-msg]
+repos:
+  # Pre-commit: no-op so prek does not error when pre-commit hook runs (we only use pre-push + commit-msg)
+  # Pre-push: format check + tests (same as previous devenv git-hooks)
+  - repo: local
+    hooks:
+      - id: pre-push
+        name: pre-push (format + tests)
+        entry: bin/pre-push
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+  # Commit message format (conventional commits / commitizen)
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.13.6
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
