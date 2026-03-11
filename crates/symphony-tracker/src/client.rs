@@ -7,6 +7,7 @@ use serde_json::Value;
 
 use symphony_domain::Issue;
 
+use crate::filter::apply_label_filters;
 use crate::TrackerError;
 use crate::normalize::github_issue_to_domain;
 
@@ -43,12 +44,14 @@ fn repo_issues_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -
 }
 
 /// Fetch all issues in the given states (e.g. open). Excludes pull requests.
-/// Paginates until no more results. Uses active_states from config (default ["open"]).
+/// Optionally filters by include_labels (whitelist) and exclude_labels (blacklist) per SPEC_ADDENDUM_1 A.1.
 pub async fn fetch_candidate_issues(
   endpoint: &str,
   api_key: &str,
   repo: &str,
   active_states: &[String],
+  include_labels: Option<&[String]>,
+  exclude_labels: Option<&[String]>,
 ) -> Result<Vec<Issue>, TrackerError> {
   let (owner, repo_name) = parse_repo(repo)?;
   let client = make_client(api_key)?;
@@ -111,7 +114,8 @@ pub async fn fetch_candidate_issues(
     }
   }
 
-  Ok(all)
+  let filtered = apply_label_filters(all, include_labels, exclude_labels);
+  Ok(filtered)
 }
 
 /// Fetch current state for issues by identifier (e.g. "owner/repo#42").
@@ -161,6 +165,7 @@ pub async fn fetch_issue_states_by_ids(
 }
 
 /// Fetch all issues in the given states (e.g. closed). For terminal-state cleanup.
+/// Does not apply label filters (we want all terminal issues for cleanup).
 pub async fn fetch_issues_by_states(
   endpoint: &str,
   api_key: &str,
@@ -170,7 +175,7 @@ pub async fn fetch_issues_by_states(
   if states.is_empty() {
     return Ok(vec![]);
   }
-  fetch_candidate_issues(endpoint, api_key, repo, states).await
+  fetch_candidate_issues(endpoint, api_key, repo, states, None, None).await
 }
 
 #[cfg(test)]

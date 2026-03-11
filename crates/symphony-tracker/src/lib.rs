@@ -3,12 +3,14 @@
 //! See `docs/10-github-tracker.md`.
 
 mod error;
+mod filter;
 mod normalize;
 
 #[cfg(feature = "client")]
 mod client;
 
 pub use error::TrackerError;
+pub use filter::apply_label_filters;
 pub use normalize::github_issue_to_domain;
 
 #[cfg(feature = "client")]

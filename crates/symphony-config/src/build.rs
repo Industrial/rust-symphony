@@ -20,6 +20,8 @@ struct RawTracker {
   endpoint: Option<String>,
   active_states: Option<Vec<String>>,
   terminal_states: Option<Vec<String>>,
+  include_labels: Option<Vec<String>>,
+  exclude_labels: Option<Vec<String>>,
 }
 
 /// Raw runner map from workflow front matter.
@@ -106,6 +108,8 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     terminal_states: tracker
       .terminal_states
       .or_else(|| Some(vec!["closed".to_string()])),
+    include_labels: tracker.include_labels,
+    exclude_labels: tracker.exclude_labels,
   };
 
   let runner_raw = raw
@@ -353,5 +357,49 @@ mod tests {
         .get("in progress"),
       Some(&3u32)
     );
+  }
+
+  #[test]
+  fn from_workflow_config_tracker_include_exclude_labels_omitted() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert!(config.tracker.include_labels.is_none());
+    assert!(config.tracker.exclude_labels.is_none());
+  }
+
+  #[test]
+  fn from_workflow_config_tracker_include_exclude_labels_parsed() {
+    let value = serde_json::json!({
+        "tracker": {
+            "repo": "r",
+            "api_key": "k",
+            "include_labels": ["symphony", "bot"],
+            "exclude_labels": ["symphony-claimed", "wip"]
+        },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert_eq!(
+      config.tracker.include_labels,
+      Some(vec!["symphony".to_string(), "bot".to_string()])
+    );
+    assert_eq!(
+      config.tracker.exclude_labels,
+      Some(vec!["symphony-claimed".to_string(), "wip".to_string()])
+    );
+  }
+
+  #[test]
+  fn from_workflow_config_tracker_empty_label_arrays() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k", "include_labels": [], "exclude_labels": [] },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert_eq!(config.tracker.include_labels, Some(vec![]));
+    assert_eq!(config.tracker.exclude_labels, Some(vec![]));
   }
 }

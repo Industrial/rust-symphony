@@ -19,6 +19,11 @@ pub struct TrackerConfig {
   pub endpoint: Option<String>,
   pub active_states: Option<Vec<String>>,
   pub terminal_states: Option<Vec<String>>,
+
+  /// SPEC_ADDENDUM_1 A.1.1: candidate must have at least one of these labels (if non-empty).
+  pub include_labels: Option<Vec<String>>,
+  /// SPEC_ADDENDUM_1 A.1.2: candidate must have none of these labels (if non-empty).
+  pub exclude_labels: Option<Vec<String>>,
 }
 
 impl TrackerConfig {
@@ -166,6 +171,8 @@ mod tests {
         endpoint: None,
         active_states: None,
         terminal_states: None,
+        include_labels: None,
+        exclude_labels: None,
       },
       runner: RunnerConfig {
         command: "codex app-server".into(),

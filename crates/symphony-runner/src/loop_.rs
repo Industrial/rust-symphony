@@ -316,6 +316,8 @@ async fn poll_tick(
     &config.tracker.api_key,
     &config.tracker.repo,
     active_states,
+    config.tracker.include_labels.as_deref(),
+    config.tracker.exclude_labels.as_deref(),
   )
   .await
   {
@@ -548,6 +550,8 @@ mod tests {
         endpoint: None,
         active_states: None,
         terminal_states: None,
+        include_labels: None,
+        exclude_labels: None,
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),
