@@ -19,7 +19,7 @@ runs:
         AUDIT_ALLOW: ${{ inputs.audit-allow }}
       run: |
         if [ -n "$AUDIT_ALLOW" ]; then
-          cargo audit --allow "$AUDIT_ALLOW"
+          cargo audit --ignore "$AUDIT_ALLOW"
         else
           cargo audit
         fi
