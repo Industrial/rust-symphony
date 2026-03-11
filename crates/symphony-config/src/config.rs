@@ -1,5 +1,8 @@
 //! Typed config structs and dispatch validation (SPEC §6.3, §6.4).
 
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -50,11 +53,75 @@ impl RunnerConfig {
   }
 }
 
+/// Polling config (SPEC §6.4).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PollingConfig {
+  pub interval_ms: u64,
+}
+
+impl Default for PollingConfig {
+  fn default() -> Self {
+    Self {
+      interval_ms: 30_000,
+    }
+  }
+}
+
+/// Workspace config (SPEC §6.4). Root is resolved and absolute.
+#[derive(Debug, Clone)]
+pub struct WorkspaceConfig {
+  pub root: PathBuf,
+}
+
+/// Hooks config (SPEC §6.4).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct HooksConfig {
+  pub after_create: Option<String>,
+  pub before_run: Option<String>,
+  pub after_run: Option<String>,
+  pub before_remove: Option<String>,
+  pub timeout_ms: u64,
+}
+
+impl HooksConfig {
+  pub fn timeout_ms(&self) -> u64 {
+    if self.timeout_ms == 0 {
+      60_000
+    } else {
+      self.timeout_ms
+    }
+  }
+}
+
+/// Agent config (SPEC §6.4). Keys in max_concurrent_agents_by_state are normalized lowercase.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
+  pub max_concurrent_agents: u32,
+  pub max_turns: u32,
+  pub max_retry_backoff_ms: u64,
+  pub max_concurrent_agents_by_state: HashMap<String, u32>,
+}
+
+impl Default for AgentConfig {
+  fn default() -> Self {
+    Self {
+      max_concurrent_agents: 10,
+      max_turns: 20,
+      max_retry_backoff_ms: 300_000,
+      max_concurrent_agents_by_state: HashMap::new(),
+    }
+  }
+}
+
 /// Resolved and validated config for dispatch preflight (SPEC §6.3).
 #[derive(Debug, Clone)]
 pub struct ServiceConfig {
   pub tracker: TrackerConfig,
   pub runner: RunnerConfig,
+  pub polling: PollingConfig,
+  pub workspace: WorkspaceConfig,
+  pub hooks: HooksConfig,
+  pub agent: AgentConfig,
 }
 
 impl ServiceConfig {
@@ -76,9 +143,8 @@ impl ServiceConfig {
 mod tests {
   use super::*;
 
-  #[test]
-  fn validate_dispatch_passes() {
-    let s = ServiceConfig {
+  fn minimal_service_config() -> ServiceConfig {
+    ServiceConfig {
       tracker: TrackerConfig {
         repo: "owner/repo".into(),
         api_key: "key".into(),
@@ -92,27 +158,25 @@ mod tests {
         read_timeout_ms: None,
         stall_timeout_ms: None,
       },
-    };
+      polling: PollingConfig::default(),
+      workspace: WorkspaceConfig {
+        root: std::env::temp_dir().join("symphony_workspaces"),
+      },
+      hooks: HooksConfig::default(),
+      agent: AgentConfig::default(),
+    }
+  }
+
+  #[test]
+  fn validate_dispatch_passes() {
+    let s = minimal_service_config();
     assert!(s.validate_dispatch().is_ok());
   }
 
   #[test]
   fn validate_dispatch_fails_empty_repo() {
-    let s = ServiceConfig {
-      tracker: TrackerConfig {
-        repo: "".into(),
-        api_key: "k".into(),
-        endpoint: None,
-        active_states: None,
-        terminal_states: None,
-      },
-      runner: RunnerConfig {
-        command: "cmd".into(),
-        turn_timeout_ms: None,
-        read_timeout_ms: None,
-        stall_timeout_ms: None,
-      },
-    };
+    let mut s = minimal_service_config();
+    s.tracker.repo = String::new();
     assert!(s.validate_dispatch().is_err());
   }
 
@@ -127,5 +191,35 @@ mod tests {
     assert_eq!(r.turn_timeout_ms(), 100);
     assert_eq!(r.read_timeout_ms(), 5_000);
     assert_eq!(r.stall_timeout_ms(), 200);
+  }
+
+  #[test]
+  fn polling_config_default() {
+    let p = PollingConfig::default();
+    assert_eq!(p.interval_ms, 30_000);
+  }
+
+  #[test]
+  fn hooks_config_timeout_default() {
+    let h = HooksConfig::default();
+    assert_eq!(h.timeout_ms(), 60_000);
+  }
+
+  #[test]
+  fn hooks_config_timeout_explicit() {
+    let h = HooksConfig {
+      timeout_ms: 90_000,
+      ..Default::default()
+    };
+    assert_eq!(h.timeout_ms(), 90_000);
+  }
+
+  #[test]
+  fn agent_config_default() {
+    let a = AgentConfig::default();
+    assert_eq!(a.max_concurrent_agents, 10);
+    assert_eq!(a.max_turns, 20);
+    assert_eq!(a.max_retry_backoff_ms, 300_000);
+    assert!(a.max_concurrent_agents_by_state.is_empty());
   }
 }

@@ -27,6 +27,9 @@ pub enum ConfigError {
 
   #[error("deserialize: {0}")]
   Deserialize(String),
+
+  #[error("path resolution: {0}")]
+  Io(#[from] std::io::Error),
 }
 
 #[cfg(test)]

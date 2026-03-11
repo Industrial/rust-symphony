@@ -47,3 +47,4 @@ Checklist for **SPEC §18**. Use for conformance and release validation. Core = 
 ## References
 
 - [SPEC.md](SPEC.md) §18 — Implementation Checklist
+- [18-operator-runbook.md](18-operator-runbook.md) — Operator runbook for running and operating the service

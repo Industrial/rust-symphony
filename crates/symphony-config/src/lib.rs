@@ -8,6 +8,9 @@ mod error;
 mod resolve;
 
 pub use build::from_workflow_config;
-pub use config::{RunnerConfig, ServiceConfig, TrackerConfig};
+pub use config::{
+  AgentConfig, HooksConfig, PollingConfig, RunnerConfig, ServiceConfig, TrackerConfig,
+  WorkspaceConfig,
+};
 pub use error::{ConfigError, ConfigValidationError};
-pub use resolve::resolve_var;
+pub use resolve::{resolve_var, resolve_workspace_root};
