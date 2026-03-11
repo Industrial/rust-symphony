@@ -1,0 +1,27 @@
+# Moon project config for symphony-domain crate.
+# Inherits check and test from .moon/tasks/rust.yml.
+language: 'rust'
+layer: 'library'
+tasks:
+  check:
+    description: 'Run cargo check for the crate'
+    command: 'cargo'
+    args: ['check']
+    inputs:
+      - 'Cargo.toml'
+      - '/Cargo.lock'
+      - 'src/**/*'
+    options:
+      cache: true
+  test:
+    description: 'Run cargo test for the crate'
+    command: 'cargo'
+    args: ['test']
+    deps: ['check']
+    inputs:
+      - 'Cargo.toml'
+      - '/Cargo.lock'
+      - 'src/**/*'
+      - 'tests/**/*'
+    options:
+      cache: true

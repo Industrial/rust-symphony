@@ -17,4 +17,4 @@ pub use retry::RetryEntry;
 pub use run_attempt::{RunAttempt, RunAttemptStatus};
 pub use session::LiveSession;
 pub use workflow::WorkflowDefinition;
-pub use workspace::{sanitize_workspace_key, Workspace};
+pub use workspace::{Workspace, sanitize_workspace_key};

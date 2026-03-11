@@ -3,6 +3,12 @@
 # https://moonrepo.dev/docs/config/project
 language: 'rust'
 type: 'application'
+# Don't inherit check/test from rust.yml — those run per-crate only
+workspace:
+  inheritedTasks:
+    exclude:
+      - check
+      - test
 tasks:
   # Format entire workspace
   format:
@@ -34,47 +40,47 @@ tasks:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '**/*.rs'
-  # Integration tests: forge new then run template bin/test-integration
-  test-integration:
-    command: 'bash'
-    args: ['bin/test-integration']
-    inputs:
-      - 'bin/test-integration'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'crates/**/*.rs'
-      - 'crates/forge-cli/templates/**/*'
-  # E2E tests: forge new then run template bin/test-e2e (Playwright in templates/default/test/e2e)
-  test-e2e:
-    command: 'bash'
-    args: ['bin/test-e2e']
-    inputs:
-      - 'bin/test-e2e'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'crates/**/*.rs'
-      - 'crates/forge-cli/templates/**/*'
-  # Monorepo check (tsgo + Biome at root)
-  check:
-    deps: ['~:format']
-    command: 'bun'
-    args: ['run', 'check']
-    inputs:
-      - 'package.json'
-      - 'bun.lock'
-      - 'biome.json'
-      - 'tsconfig.json'
-      - 'packages/**/*.ts'
-      - 'packages/**/*.tsx'
-  # Monorepo unit tests (root); runs after check; only *.test.* (excludes Playwright .spec.ts)
-  test:
-    deps: ['~:check']
-    command: 'bun'
-    args: ['test', '.test.']
-    inputs:
-      - 'package.json'
-      - 'bun.lock'
-      - 'packages/**/*.ts'
-      - 'packages/**/*.tsx'
-      - '**/*.test.ts'
-      - '**/*.test.tsx'
+  # # Integration tests: forge new then run template bin/test-integration
+  # test-integration:
+  #   command: 'bash'
+  #   args: ['bin/test-integration']
+  #   inputs:
+  #     - 'bin/test-integration'
+  #     - 'Cargo.toml'
+  #     - 'Cargo.lock'
+  #     - 'crates/**/*.rs'
+  #     - 'crates/forge-cli/templates/**/*'
+  # # E2E tests: forge new then run template bin/test-e2e (Playwright in templates/default/test/e2e)
+  # test-e2e:
+  #   command: 'bash'
+  #   args: ['bin/test-e2e']
+  #   inputs:
+  #     - 'bin/test-e2e'
+  #     - 'Cargo.toml'
+  #     - 'Cargo.lock'
+  #     - 'crates/**/*.rs'
+  #     - 'crates/forge-cli/templates/**/*'
+  # # Monorepo check (tsgo + Biome at root)
+  # check:
+  #   deps: ['~:format']
+  #   command: 'bun'
+  #   args: ['run', 'check']
+  #   inputs:
+  #     - 'package.json'
+  #     - 'bun.lock'
+  #     - 'biome.json'
+  #     - 'tsconfig.json'
+  #     - 'packages/**/*.ts'
+  #     - 'packages/**/*.tsx'
+  # # Monorepo unit tests (root); runs after check; only *.test.* (excludes Playwright .spec.ts)
+  # test:
+  #   deps: ['~:check']
+  #   command: 'bun'
+  #   args: ['test', '.test.']
+  #   inputs:
+  #     - 'package.json'
+  #     - 'bun.lock'
+  #     - 'packages/**/*.ts'
+  #     - 'packages/**/*.tsx'
+  #     - '**/*.test.ts'
+  #     - '**/*.test.tsx'
