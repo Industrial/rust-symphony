@@ -6,6 +6,7 @@ Checklist for **SPEC §18**. Use for conformance and release validation. Core = 
 
 ## 18.1 Required for Conformance (Core)
 
+- [ ] **Unit tests for all code:** Every module and crate must have unit tests as a deliverable; code is not done until tests are written ([16-testing.md](16-testing.md)).
 - [ ] Workflow path: explicit runtime path and cwd default (`WORKFLOW.md`)
 - [ ] WORKFLOW.md loader: YAML front matter + prompt body split ([04-workflow-spec.md](04-workflow-spec.md))
 - [ ] Typed config layer: defaults and `$VAR` resolution ([05-configuration.md](05-configuration.md))

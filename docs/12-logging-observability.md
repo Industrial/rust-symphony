@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §13**. Uses **tracing** for structured logging; optional **axum** for the HTTP API and dashboard (extension).
 
+**Deliverable:** Unit tests must be written for all code; implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## Crates

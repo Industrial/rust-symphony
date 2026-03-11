@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §16**. The spec gives pseudocode; this doc maps it to the structures and patterns used in the Rust implementation (orchestrator task, messages, tick loop, worker spawn).
 
+**Deliverable:** Unit tests must be written for all code; implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## 16.1 Service Startup (SPEC §16.1)

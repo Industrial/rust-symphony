@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §8**. Implements the poll tick sequence, candidate selection, concurrency, retry backoff, reconciliation, and startup cleanup. Assumes the **single-owner orchestrator** from [06-orchestration.md](06-orchestration.md) and **tick-based retry** handling.
 
+**Deliverable:** Unit tests must be written for all code; implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## 8.1 Poll Loop (SPEC §8.1)

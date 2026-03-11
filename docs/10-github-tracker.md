@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §11**. Uses **reqwest** for HTTP and **serde** / **chrono** for GitHub API responses and normalization into the domain `Issue` model.
 
+**Deliverable:** Unit tests must be written for all code; implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## Crates

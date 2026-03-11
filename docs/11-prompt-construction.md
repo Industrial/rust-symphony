@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §12**. Uses the **liquid** crate for Liquid-compatible templating with strict variable checking; **serde** to build the `issue` object for the template.
 
+**Deliverable:** Unit tests must be written for all code; implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## Crates

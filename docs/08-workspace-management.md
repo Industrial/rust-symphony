@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §9**. Uses **async** I/O (`tokio::fs`), a **subprocess crate** (or **tokio::process**) for hooks with **timeout and kill**, and **non-blocking** execution so the runtime is not blocked.
 
+**Deliverable:** Unit tests must be written for all code; implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## Design Choices

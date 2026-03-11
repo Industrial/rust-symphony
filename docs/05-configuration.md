@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §6**. Uses **shellexpand** for `$VAR` and path expansion; **validator** for validation after resolution.
 
+**Deliverable:** Unit tests must be written for all code; implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## Crates

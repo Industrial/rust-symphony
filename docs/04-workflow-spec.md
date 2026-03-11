@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §5**. Uses **serde_yaml** for YAML; front matter split via a **library** (preferred) or **regex**; **file watching** is optional (notify/notify-debouncer or defer).
 
+**Deliverable:** Unit tests must be written for all code (e.g. path resolution, loader, error types); implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## Crates

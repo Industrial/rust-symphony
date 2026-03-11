@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §10**. **Minimal protocol**: line-delimited JSON over stdio, **no full JSON-RPC crate**. Use **tokio::process** (or a subprocess crate) for the agent process; **BufReader + line reading** and **serde_json** for parsing; **ad-hoc message enum** for known methods and events.
 
+**Deliverable:** Unit tests must be written for all code; implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## Protocol Summary

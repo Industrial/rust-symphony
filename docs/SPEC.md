@@ -2022,6 +2022,7 @@ Use the same validation profiles as Section 17:
 
 ### 18.1 Required for Conformance
 
+- **Unit tests are written for all code.** Each module or crate must include unit tests as a deliverable; implementation is not complete without tests for the code in that module/crate.
 - Workflow path selection supports explicit runtime path and cwd default
 - `WORKFLOW.md` loader with YAML front matter + prompt body split
 - Typed config layer with defaults and `$` resolution

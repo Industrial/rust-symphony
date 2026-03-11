@@ -4,6 +4,12 @@ Rust implementation notes for **SPEC §17**. Use **tokio::test** for async tests
 
 ---
 
+## Deliverable: Unit tests for all code
+
+**Unit tests must be written for all code as a deliverable.** For every module, crate, or component that is implemented, the implementation is not complete until unit tests are added (e.g. in `#[cfg(test)] mod tests` at the bottom of each file or in a dedicated test module). This applies to domain types, workflow loader, config layer, tracker client, workspace manager, orchestrator, agent runner, and any other implemented code. Integration and validation scenarios below are in addition to this requirement.
+
+---
+
 ## Crates
 
 ```toml

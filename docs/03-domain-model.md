@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §4**. Uses **Serde** (with **serde_json**), **chrono**, and **validator**.
 
+**Deliverable:** Unit tests must be written for all code (e.g. each module/file); implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## Crates

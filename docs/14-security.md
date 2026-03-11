@@ -2,6 +2,8 @@
 
 Rust implementation notes for **SPEC §15**. No new crates; document trust boundary, filesystem and secret handling, hook safety, and hardening. Implementation of secrets and paths uses **shellexpand** (config) and path checks (workspace manager) already described in earlier docs.
 
+**Deliverable:** Unit tests must be written for all code; implementation is not complete without them. See [16-testing.md](16-testing.md).
+
 ---
 
 ## 15.1 Trust Boundary (SPEC §15.1)
