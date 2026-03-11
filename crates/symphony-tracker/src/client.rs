@@ -1,0 +1,207 @@
+//! GitHub API HTTP client for listing and fetching issues (SPEC §11).
+
+use std::time::Duration;
+
+use reqwest::header::{ACCEPT, AUTHORIZATION, USER_AGENT};
+use serde_json::Value;
+
+use symphony_domain::Issue;
+
+use crate::TrackerError;
+use crate::normalize::github_issue_to_domain;
+
+const PER_PAGE: u32 = 100;
+const REQUEST_TIMEOUT_SECS: u64 = 30;
+
+/// Parse "owner/repo" into (owner, repo). Returns error if format invalid.
+pub fn parse_repo(repo: &str) -> Result<(String, String), TrackerError> {
+  let parts: Vec<&str> = repo.split('/').collect();
+  if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
+    return Err(TrackerError::MissingTrackerRepo);
+  }
+  Ok((parts[0].to_string(), parts[1].to_string()))
+}
+
+/// Parse "owner/repo#123" to get issue number. Returns None if format invalid.
+pub fn parse_issue_number(identifier: &str) -> Option<u64> {
+  identifier.rsplit_once('#')?.1.parse().ok()
+}
+
+fn make_client(api_key: &str) -> Result<reqwest::Client, TrackerError> {
+  if api_key.is_empty() {
+    return Err(TrackerError::MissingTrackerApiKey);
+  }
+  reqwest::Client::builder()
+    .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+    .build()
+    .map_err(|e| TrackerError::GitHubApiRequest(e.to_string()))
+}
+
+fn repo_issues_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -> String {
+  let base = endpoint.trim_end_matches('/');
+  format!("{}/repos/{}/{}/issues{}", base, owner, repo, path_suffix)
+}
+
+/// Fetch all issues in the given states (e.g. open). Excludes pull requests.
+/// Paginates until no more results. Uses active_states from config (default ["open"]).
+pub async fn fetch_candidate_issues(
+  endpoint: &str,
+  api_key: &str,
+  repo: &str,
+  active_states: &[String],
+) -> Result<Vec<Issue>, TrackerError> {
+  let (owner, repo_name) = parse_repo(repo)?;
+  let client = make_client(api_key)?;
+  let auth = format!("Bearer {}", api_key.trim().trim_start_matches("Bearer "));
+
+  let mut all = Vec::new();
+  let states = if active_states.is_empty() {
+    vec!["open".to_string()]
+  } else {
+    active_states.to_vec()
+  };
+
+  for state in &states {
+    let mut page = 1u32;
+    loop {
+      let url = repo_issues_url(
+        endpoint,
+        &owner,
+        &repo_name,
+        &format!("?state={}&per_page={}&page={}", state, PER_PAGE, page),
+      );
+      let res = client
+        .get(&url)
+        .header(AUTHORIZATION, &auth)
+        .header(ACCEPT, "application/vnd.github+json")
+        .header(USER_AGENT, "rust-symphony")
+        .send()
+        .await
+        .map_err(|e| TrackerError::GitHubApiRequest(e.to_string()))?;
+
+      if !res.status().is_success() {
+        return Err(TrackerError::GitHubApiStatus(res.status().as_u16()));
+      }
+
+      let body: Vec<Value> = res
+        .json()
+        .await
+        .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
+
+      if body.is_empty() {
+        break;
+      }
+
+      let page_len = body.len();
+      for value in &body {
+        // Exclude pull requests
+        if value.get("pull_request").is_some() {
+          continue;
+        }
+        match github_issue_to_domain(value, &owner, &repo_name) {
+          Ok(issue) => all.push(issue),
+          Err(_) => continue,
+        }
+      }
+
+      if page_len < PER_PAGE as usize {
+        break;
+      }
+      page += 1;
+    }
+  }
+
+  Ok(all)
+}
+
+/// Fetch current state for issues by identifier (e.g. "owner/repo#42").
+/// Returns issues in same order as identifiers; missing/invalid IDs are skipped.
+pub async fn fetch_issue_states_by_ids(
+  endpoint: &str,
+  api_key: &str,
+  repo: &str,
+  identifiers: &[String],
+) -> Result<Vec<Issue>, TrackerError> {
+  let (owner, repo_name) = parse_repo(repo)?;
+  let client = make_client(api_key)?;
+  let auth = format!("Bearer {}", api_key.trim().trim_start_matches("Bearer "));
+
+  let mut results = Vec::with_capacity(identifiers.len());
+  for id in identifiers {
+    let number = match parse_issue_number(id) {
+      Some(n) => n,
+      None => continue,
+    };
+    let url = repo_issues_url(endpoint, &owner, &repo_name, &format!("/{}", number));
+    let res = client
+      .get(&url)
+      .header(AUTHORIZATION, &auth)
+      .header(ACCEPT, "application/vnd.github+json")
+      .header(USER_AGENT, "rust-symphony")
+      .send()
+      .await
+      .map_err(|e| TrackerError::GitHubApiRequest(e.to_string()))?;
+
+    if !res.status().is_success() {
+      continue;
+    }
+
+    let value: Value = res
+      .json()
+      .await
+      .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
+    if value.get("pull_request").is_some() {
+      continue;
+    }
+    if let Ok(issue) = github_issue_to_domain(&value, &owner, &repo_name) {
+      results.push(issue);
+    }
+  }
+  Ok(results)
+}
+
+/// Fetch all issues in the given states (e.g. closed). For terminal-state cleanup.
+pub async fn fetch_issues_by_states(
+  endpoint: &str,
+  api_key: &str,
+  repo: &str,
+  states: &[String],
+) -> Result<Vec<Issue>, TrackerError> {
+  if states.is_empty() {
+    return Ok(vec![]);
+  }
+  fetch_candidate_issues(endpoint, api_key, repo, states).await
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn parse_repo_ok() {
+    let (o, r) = parse_repo("owner/repo").unwrap();
+    assert_eq!(o, "owner");
+    assert_eq!(r, "repo");
+  }
+
+  #[test]
+  fn parse_repo_invalid() {
+    assert!(parse_repo("").is_err());
+    assert!(parse_repo("owner").is_err());
+    assert!(parse_repo("owner/").is_err());
+    assert!(parse_repo("/repo").is_err());
+  }
+
+  #[test]
+  fn parse_issue_number_ok() {
+    assert_eq!(parse_issue_number("owner/repo#42"), Some(42));
+    assert_eq!(parse_issue_number("a/b#1"), Some(1));
+  }
+
+  #[test]
+  fn parse_issue_number_invalid() {
+    assert_eq!(parse_issue_number("owner/repo"), None);
+    assert_eq!(parse_issue_number("owner/repo#"), None);
+    assert_eq!(parse_issue_number("owner/repo#x"), None);
+  }
+}

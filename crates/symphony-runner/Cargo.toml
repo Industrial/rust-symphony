@@ -18,3 +18,7 @@ symphony-config = { path = "../symphony-config" }
 symphony-workflow = { path = "../symphony-workflow" }
 symphony-orchestration = { path = "../symphony-orchestration" }
 symphony-domain = { path = "../symphony-domain" }
+symphony-agent = { path = "../symphony-agent" }
+symphony-prompt = { path = "../symphony-prompt" }
+symphony-tracker = { path = "../symphony-tracker", features = ["client"] }
+symphony-workspace = { path = "../symphony-workspace" }

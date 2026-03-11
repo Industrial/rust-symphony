@@ -1,6 +1,7 @@
 ---
 # GitHub issue tracker (required).
 # Set GITHUB_TOKEN in the environment; workflow resolves $GITHUB_TOKEN at runtime.
+# Token needs read access to Issues only: fine-grained "Issues: Read-only", or classic "public_repo" (public) / "repo" (private). See docs/10-github-tracker.md.
 tracker:
   repo: "Industrial/rust-symphony"
   api_key: "$GITHUB_TOKEN"
@@ -8,12 +9,18 @@ tracker:
   terminal_states: ["closed"]
 
 # Command to run the coding agent in each workspace (required).
-# Runs with cwd = per-issue workspace. Use an agent that speaks the runner protocol
-# (e.g. Cursor Agent, or another NDJSON-over-stdio compatible runner).
+# Change this to use a different agent; it is run with cwd = per-issue workspace.
+# type: "codex" (default) | "acp" | "cli"
+#   codex = Codex-style protocol (thread/start, turn/start, turn/completed).
+#   acp   = Cursor ACP (agent acp). Command: "agent acp".
+#   cli   = Cursor non-interactive: prompt as argument, parse stream-json. Use when "agent acp" is not available (e.g. NixOS).
+# Optional: set SYMPHONY_EXIT_ON_WORKER_FAILURE=1 to exit with code 1 on first worker failure.
+# Debug: RUST_LOG=debug to see agent_direction=send|recv and agent_line.
 runner:
-  command: "cursor agent"
+  type: cli
+  command: "/run/current-system/sw/bin/cursor-agent --force --approve-mcps --model auto --force --workspace . --print --output-format stream-json --stream-partial-output"
   turn_timeout_ms: 3600000
-  read_timeout_ms: 5000
+  read_timeout_ms: 60000
   stall_timeout_ms: 300000
 
 # How often to poll the tracker (default 30_000 ms).
@@ -30,6 +37,14 @@ agent:
   max_concurrent_agents: 3
   max_turns: 20
   max_retry_backoff_ms: 300000
+---
+
+# Prompt template (how the agent receives the ticket)
+
+The text below is the prompt sent to the agent for each issue. Edit it to change how the ticket is presented.
+Liquid variables: `issue` (title, identifier, state, description, url, labels), optional `attempt` (retry number).
+See https://shopify.github.io/liquid/ for syntax.
+
 ---
 
 # Symphony workflow — RustSymphony

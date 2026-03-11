@@ -3,6 +3,7 @@
 //! Pure in-place updates to OrchestratorState. The orchestrator task calls these
 //! when handling OrchestratorMessage variants.
 
+use chrono::Utc;
 use symphony_domain::{OrchestratorState, RetryEntry};
 
 use crate::messages::{AgentUpdatePayload, WorkerExitReason};
@@ -106,6 +107,7 @@ pub fn apply_agent_update(
   if let Some(n) = update.turn_count {
     entry.session.turn_count = n;
   }
+  entry.session.last_agent_timestamp = Some(Utc::now());
 }
 
 /// Release an issue: remove from claimed and retry_attempts (and optionally from running).
@@ -308,6 +310,10 @@ mod tests {
     assert_eq!(entry.session.session_id.as_deref(), Some("s1-1"));
     assert_eq!(entry.session.agent_input_tokens, 50);
     assert_eq!(entry.session.turn_count, 2);
+    assert!(
+      entry.session.last_agent_timestamp.is_some(),
+      "stall detection: last_agent_timestamp set on update"
+    );
   }
 
   #[test]

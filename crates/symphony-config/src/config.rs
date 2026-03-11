@@ -31,10 +31,25 @@ impl TrackerConfig {
   }
 }
 
+/// Runner protocol: Codex-style (thread/start, turn/start), ACP (Cursor: agent acp), or CLI (Cursor: prompt as arg, stream-json).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RunnerType {
+  #[default]
+  Codex,
+  Acp,
+  /// Cursor non-interactive: run `command "$SYMPHONY_PROMPT"`, parse NDJSON stdout until type=result, subtype=success.
+  Cli,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct RunnerConfig {
   #[validate(length(min = 1, message = "runner.command required"))]
   pub command: String,
+
+  /// Protocol the agent speaks: "codex" (default) or "acp" (Cursor ACP).
+  #[serde(rename = "type", default)]
+  pub runner_type: RunnerType,
 
   pub turn_timeout_ms: Option<u64>,
   pub read_timeout_ms: Option<u64>,
@@ -154,6 +169,7 @@ mod tests {
       },
       runner: RunnerConfig {
         command: "codex app-server".into(),
+        runner_type: RunnerType::Codex,
         turn_timeout_ms: None,
         read_timeout_ms: None,
         stall_timeout_ms: None,
@@ -184,6 +200,7 @@ mod tests {
   fn runner_timeout_getters() {
     let r = RunnerConfig {
       command: "c".into(),
+      runner_type: RunnerType::Codex,
       turn_timeout_ms: Some(100),
       read_timeout_ms: None,
       stall_timeout_ms: Some(200),

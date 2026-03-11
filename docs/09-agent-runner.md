@@ -126,8 +126,49 @@ Map failures to normalized errors: `runner_not_found`, `invalid_workspace_cwd`, 
 
 ---
 
+## Protocol selection: runner.type (codex | acp | cli)
+
+In WORKFLOW.md front matter, set **`runner.type`** to choose the protocol:
+
+- **`codex`** (default): Codex-style protocol (SPEC §10): `initialize` → `initialized` → `thread/start` → `turn/start`, with responses carrying `result.thread.id` and `result.turn.id`, and notifications `turn/completed`, `turn/failed`, `turn/cancelled`. Reference: [OpenAI Codex app-server](https://developers.openai.com/codex/app-server/).
+- **`acp`**: ACP (Agent Client Protocol) for Cursor. Use **`runner.command: "agent acp"`**. Flow: `initialize` → `authenticate` → `session/new` → `session/prompt`; we handle `session/request_permission` with `allow-once`. See [Cursor ACP docs](https://cursor.com/docs/cli/acp). Pre-authenticate with `agent login` or `CURSOR_AUTH_TOKEN` / `CURSOR_API_KEY`.
+- **`cli`**: Cursor CLI non-interactive mode when `agent acp` is not available (e.g. NixOS). The runner runs `command "$SYMPHONY_PROMPT"` (prompt passed as one argument), reads **stream-json** NDJSON from stdout, and treats completion when a line has `type: "result", subtype: "success"`. Use the same flags you would for a one-shot run: `--print --output-format stream-json` (and optionally `--stream-partial-output`). See [Cursor output format](https://cursor.com/docs/cli/reference/output-format).
+
+Example for Cursor with ACP:
+
+```yaml
+runner:
+  type: acp
+  command: "agent acp"
+  read_timeout_ms: 60000
+  turn_timeout_ms: 3600000
+```
+
+Example for Cursor on NixOS (no `agent acp`):
+
+```yaml
+runner:
+  type: cli
+  command: "/run/current-system/sw/bin/cursor-agent --force --approve-mcps --model auto --force --workspace . --print --output-format stream-json --stream-partial-output"
+  turn_timeout_ms: 3600000
+  read_timeout_ms: 60000
+```
+
+## Debugging: what we send and receive
+
+With **`RUST_LOG=debug`** (or `symphony_agent=debug`), the runner logs:
+
+- **agent_direction=send**, **agent_line**: every JSON line written to the agent’s stdin.
+- **agent_direction=recv**, **agent_line**: every JSON line read from the agent’s stdout (handshake and turn loop).
+- **agent_stderr**: each line read from the agent’s stderr.
+
+Use this to confirm whether the agent is receiving our messages and what (if anything) it sends back. If you see only “send” lines and no “recv” lines, the agent is not replying on stdout (wrong protocol or wrong command).
+
+---
+
 ## References
 
 - [SPEC.md](SPEC.md) §10 — Agent Runner Protocol  
 - [07-polling-scheduling.md](07-polling-scheduling.md) — Stall timeout  
-- [08-workspace-management.md](08-workspace-management.md) — Workspace path and cwd
+- [08-workspace-management.md](08-workspace-management.md) — Workspace path and cwd  
+- [Cursor ACP](https://cursor.com/docs/cli/acp) — Cursor’s stdio protocol (different from Codex-style)

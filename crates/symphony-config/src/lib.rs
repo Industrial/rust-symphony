@@ -11,7 +11,7 @@ mod resolve;
 
 pub use build::from_workflow_config;
 pub use config::{
-  AgentConfig, HooksConfig, PollingConfig, RunnerConfig, ServiceConfig, TrackerConfig,
+  AgentConfig, HooksConfig, PollingConfig, RunnerConfig, RunnerType, ServiceConfig, TrackerConfig,
   WorkspaceConfig,
 };
 pub use error::{ConfigError, ConfigValidationError};

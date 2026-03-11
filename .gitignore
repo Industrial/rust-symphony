@@ -26,6 +26,7 @@
 .moon/cache
 .moon/docker
 .serena/
+.symphony_workspaces/
 .tmp/
 .vscode/
 Thumbs.db

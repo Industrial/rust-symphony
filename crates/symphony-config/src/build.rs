@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::ConfigError;
 use crate::config::{
-  AgentConfig, HooksConfig, PollingConfig, RunnerConfig, ServiceConfig, TrackerConfig,
+  AgentConfig, HooksConfig, PollingConfig, RunnerConfig, RunnerType, ServiceConfig, TrackerConfig,
   WorkspaceConfig,
 };
 use crate::resolve::{resolve_var, resolve_workspace_root};
@@ -27,6 +27,8 @@ struct RawTracker {
 #[serde(rename_all = "snake_case")]
 struct RawRunner {
   command: Option<String>,
+  #[serde(rename = "type")]
+  runner_type: Option<String>,
   turn_timeout_ms: Option<u64>,
   read_timeout_ms: Option<u64>,
   stall_timeout_ms: Option<u64>,
@@ -113,9 +115,15 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     .command
     .map(|s| resolve_var(&s).trim().to_string())
     .unwrap_or_default();
+  let runner_type = match runner_raw.runner_type.as_deref() {
+    Some("acp") => RunnerType::Acp,
+    Some("cli") => RunnerType::Cli,
+    _ => RunnerType::Codex,
+  };
 
   let runner_config = RunnerConfig {
     command,
+    runner_type,
     turn_timeout_ms: runner_raw.turn_timeout_ms.or(Some(3_600_000)),
     read_timeout_ms: runner_raw.read_timeout_ms.or(Some(5_000)),
     stall_timeout_ms: runner_raw.stall_timeout_ms.or(Some(300_000)),
@@ -191,6 +199,28 @@ mod tests {
     assert_eq!(config.tracker.repo, "owner/repo");
     assert_eq!(config.tracker.api_key, "test-key");
     assert_eq!(config.runner.command, "codex app-server");
+    assert_eq!(config.runner.runner_type, RunnerType::Codex);
+  }
+
+  #[test]
+  fn from_workflow_config_runner_type_acp() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "agent acp", "type": "acp" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert_eq!(config.runner.runner_type, RunnerType::Acp);
+    assert_eq!(config.runner.command, "agent acp");
+  }
+
+  #[test]
+  fn from_workflow_config_runner_type_cli() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "cursor-agent -p --output-format stream-json", "type": "cli" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert_eq!(config.runner.runner_type, RunnerType::Cli);
   }
 
   #[test]

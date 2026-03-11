@@ -37,6 +37,22 @@ chrono = { version = "0.4", features = ["serde"] }
 - **Exclude PRs**: GitHub list endpoint returns both; filter items where `pull_request` is absent (or use a dedicated issues endpoint if available).
 - **Timeout**: `reqwest::Client::builder().timeout(Duration::from_secs(30))`.
 
+### Token permissions (SPEC §11.1–11.5)
+
+The orchestrator **only reads** issues (no writes). Required API calls:
+
+| Operation | Endpoint |
+|-----------|----------|
+| List issues (candidates, terminal cleanup) | `GET /repos/{owner}/{repo}/issues?state=...&per_page=100&page={n}` |
+| Single issue (reconciliation) | `GET /repos/{owner}/{repo}/issues/{issue_number}` |
+
+Use the **minimum** scope that allows these:
+
+- **Fine-grained PAT**: Repository permissions → **Issues: Read-only** for the target repo(s). (Use "Read and write" only if another part of the system, e.g. the agent, will use the same token to update issues.)
+- **Classic PAT**: For a **public** repo, **`public_repo`** is enough. For a **private** repo, **`repo`** (full control of private repositories) is required to read issues.
+
+No other scopes (workflow, packages, org, etc.) are needed for the tracker.
+
 ---
 
 ## 11.3 Normalization (SPEC §11.3)

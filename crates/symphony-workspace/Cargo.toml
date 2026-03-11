@@ -7,3 +7,5 @@ license = "CC-BY-SA-4.0"
 
 [dependencies]
 symphony-domain = { path = "../symphony-domain" }
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "process", "rt", "macros", "time"] }
