@@ -1,9 +1,9 @@
 //! Serde helpers for `PathBuf` (serialize as string).
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-pub fn serialize<S: Serializer>(p: &PathBuf, s: S) -> Result<S::Ok, S::Error> {
+pub fn serialize<S: Serializer>(p: &Path, s: S) -> Result<S::Ok, S::Error> {
   p.to_string_lossy().serialize(s)
 }
 

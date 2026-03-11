@@ -2,6 +2,8 @@
 //!
 //! See `docs/04-workflow-spec.md`.
 
+#![allow(clippy::missing_docs_in_private_items)]
+
 mod error;
 mod loader;
 mod path;

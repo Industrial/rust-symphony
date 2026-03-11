@@ -2,6 +2,8 @@
 //!
 //! See `docs/05-configuration.md`.
 
+#![allow(clippy::missing_docs_in_private_items)]
+
 mod build;
 mod config;
 mod error;
