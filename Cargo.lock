@@ -622,6 +622,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "symphony-orchestration"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "symphony-domain",
+]
+
+[[package]]
 name = "symphony-workflow"
 version = "0.1.0"
 dependencies = [
