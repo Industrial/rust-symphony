@@ -14,6 +14,7 @@ tasks:
       - 'src/**/*'
     options:
       cache: true
+      outputStyle: buffer-only-failure
   test:
     description: 'Run cargo test for the crate'
     command: 'cargo'
@@ -26,3 +27,4 @@ tasks:
       - 'tests/**/*'
     options:
       cache: true
+      outputStyle: buffer-only-failure

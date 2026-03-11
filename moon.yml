@@ -26,6 +26,7 @@ tasks:
       - '.github/workflows/*.yml'
     options:
       cache: false
+      outputStyle: buffer-only-failure
   # Audit workspace dependencies
   audit:
     command: 'cargo'
@@ -33,6 +34,8 @@ tasks:
     inputs:
       - 'Cargo.toml'
       - 'Cargo.lock'
+    options:
+      outputStyle: buffer-only-failure
   # Check documentation
   check-docs:
     command: 'bash'
@@ -41,6 +44,8 @@ tasks:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '**/*.rs'
+    options:
+      outputStyle: buffer-only-failure
   # # Integration tests: forge new then run template bin/test-integration
   # test-integration:
   #   command: 'bash'
