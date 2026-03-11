@@ -9,4 +9,5 @@ runs:
     - uses: DeterminateSystems/nix-installer-action@main
     - uses: DeterminateSystems/magic-nix-cache-action@main
     - name: Install devenv
+      shell: bash
       run: nix profile install nixpkgs#devenv
