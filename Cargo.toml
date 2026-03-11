@@ -5,6 +5,7 @@ members = [
   "crates/symphony-workflow",
   "crates/symphony-config",
   "crates/symphony-orchestration",
+  "crates/symphony-runner",
   "crates/symphony-workspace",
   "crates/symphony-agent",
   "crates/symphony-tracker",

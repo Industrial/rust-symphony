@@ -132,6 +132,12 @@ Retry “timer”: no separate timer per issue. Each tick, compute `now` (monoto
 
 ---
 
+## Runtime / implementation location
+
+The Tokio orchestrator task (single owner, channel, interval, spawn workers) is implemented in the **symphony-runner** crate. The binary `symphony` loads config from `WORKFLOW.md`, spawns the orchestrator task and a tick task, and runs until shutdown (e.g. Ctrl-C). Tracker fetch, workspace create, and agent subprocess are currently stubs; wire them in the runner as those crates gain full APIs.
+
+---
+
 ## References
 
 - [SPEC.md](SPEC.md) §7 — Orchestration State Machine  

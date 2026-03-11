@@ -1,0 +1,19 @@
+[package]
+name = "symphony-runner"
+version = "0.1.0"
+edition = "2021"
+description = "Tokio orchestrator loop: single-owner task, channel, tick, workers (SPEC §6–7)"
+
+[[bin]]
+name = "symphony"
+path = "src/main.rs"
+
+[dependencies]
+chrono = "0.4"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+symphony-config = { path = "../symphony-config" }
+symphony-workflow = { path = "../symphony-workflow" }
+symphony-orchestration = { path = "../symphony-orchestration" }
+symphony-domain = { path = "../symphony-domain" }
