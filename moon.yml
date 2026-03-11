@@ -10,8 +10,9 @@ workspace:
       - check
       - test
 tasks:
-  # Format entire workspace
+  # Format entire workspace with treefmt
   format:
+    description: 'Format workspace with treefmt'
     command: 'treefmt'
     inputs:
       - 'treefmt.toml'

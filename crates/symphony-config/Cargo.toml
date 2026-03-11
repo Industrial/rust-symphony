@@ -1,0 +1,13 @@
+[package]
+name = "symphony-config"
+version = "0.1.0"
+edition = "2021"
+description = "Typed config layer: defaults, $VAR resolution, dispatch validation (SPEC §6)"
+
+[dependencies]
+symphony-domain = { path = "../symphony-domain" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+shellexpand = "3"
+validator = { version = "0.18", features = ["derive"] }
+thiserror = "2"
