@@ -16,6 +16,7 @@ runs:
         curl -fsSL https://moonrepo.dev/install/moon.sh | bash
         echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
         echo "PATH=$HOME/.moon/bin:$PATH" >> "$GITHUB_ENV"
+        export PATH="$HOME/.moon/bin:$PATH"
         moon --version
     - name: Cache moon
       if: inputs.cache == 'true'
