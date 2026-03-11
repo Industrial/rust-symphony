@@ -1,0 +1,12 @@
+[package]
+name = "symphony-tracker"
+version = "0.1.0"
+edition = "2021"
+description = "Issue tracker integration: GitHub normalization and errors (SPEC §11)"
+
+[dependencies]
+symphony-domain = { path = "../symphony-domain" }
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

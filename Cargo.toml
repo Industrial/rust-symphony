@@ -7,4 +7,5 @@ members = [
   "crates/symphony-orchestration",
   "crates/symphony-workspace",
   "crates/symphony-agent",
+  "crates/symphony-tracker",
 ]
