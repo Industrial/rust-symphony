@@ -65,11 +65,13 @@ pub enum AgentRunnerError {
   ProcessExit(String),
 }
 
-const MAX_LINE_LEN: usize = 10 * 1024 * 1024; // 10 MB per SPEC
+/// Maximum line length when reading agent stdout (10 MiB per SPEC).
+const MAX_LINE_LEN: usize = 10 * 1024 * 1024;
 
 /// Run the agent (Codex-style): spawn, handshake (initialize, thread/start, turn/start), then read until
 /// turn/completed, turn/failed, turn/cancelled, or turn timeout. Stderr is logged in a background task.
 /// `update_tx`: if provided, send updates when we have thread_id/turn_id.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_agent_codex(
   command: &str,
   workspace_path: &Path,
@@ -309,41 +311,38 @@ pub async fn run_agent_codex(
           break AgentExitReason::ProcessError("line too long".into());
         }
         let msg = parse_line(&line);
-        match &msg {
-          AgentMessage::Notification { method, params } => {
-            if method == "turn/completed" {
-              tracing::info!(identifier = %issue_identifier, "agent turn completed");
-              break AgentExitReason::Normal;
-            }
-            if method == "turn/failed" {
-              tracing::info!(identifier = %issue_identifier, "agent turn failed");
-              break AgentExitReason::TurnFailed;
-            }
-            if method == "turn/cancelled" {
-              tracing::info!(identifier = %issue_identifier, "agent turn cancelled");
-              break AgentExitReason::TurnCancelled;
-            }
-            // Optional: extract token counts from params and send update
-            if let Some(ref p) = params {
-              if p.get("inputTokens").or(p.get("outputTokens")).is_some() {
-                let input_tokens = p.get("inputTokens").and_then(|v| v.as_u64());
-                let output_tokens = p.get("outputTokens").and_then(|v| v.as_u64());
-                let total = input_tokens
-                  .zip(output_tokens)
-                  .map(|(i, o)| i + o)
-                  .or_else(|| p.get("totalTokens").and_then(|v| v.as_u64()));
-                if let Some(ref tx) = update_tx {
-                  let _ = tx.send(AgentRunnerUpdate {
-                    input_tokens,
-                    output_tokens: output_tokens.or_else(|| total),
-                    total_tokens: total,
-                    ..Default::default()
-                  });
-                }
+        if let AgentMessage::Notification { method, params } = &msg {
+          if method == "turn/completed" {
+            tracing::info!(identifier = %issue_identifier, "agent turn completed");
+            break AgentExitReason::Normal;
+          }
+          if method == "turn/failed" {
+            tracing::info!(identifier = %issue_identifier, "agent turn failed");
+            break AgentExitReason::TurnFailed;
+          }
+          if method == "turn/cancelled" {
+            tracing::info!(identifier = %issue_identifier, "agent turn cancelled");
+            break AgentExitReason::TurnCancelled;
+          }
+          // Optional: extract token counts from params and send update
+          if let Some(ref p) = params {
+            if p.get("inputTokens").or(p.get("outputTokens")).is_some() {
+              let input_tokens = p.get("inputTokens").and_then(|v| v.as_u64());
+              let output_tokens = p.get("outputTokens").and_then(|v| v.as_u64());
+              let total = input_tokens
+                .zip(output_tokens)
+                .map(|(i, o)| i + o)
+                .or_else(|| p.get("totalTokens").and_then(|v| v.as_u64()));
+              if let Some(ref tx) = update_tx {
+                let _ = tx.send(AgentRunnerUpdate {
+                  input_tokens,
+                  output_tokens: output_tokens.or(total),
+                  total_tokens: total,
+                  ..Default::default()
+                });
               }
             }
           }
-          _ => {}
         }
       }
       Ok(Ok(None)) => break AgentExitReason::ProcessError("stdout closed".into()),

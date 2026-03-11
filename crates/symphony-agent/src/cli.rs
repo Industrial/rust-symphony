@@ -12,6 +12,7 @@ use tokio::time::timeout;
 
 use crate::runner::{AgentExitReason, AgentRunOutcome, AgentRunnerError, AgentRunnerUpdate};
 
+/// Maximum line length when reading agent stdout (10 MiB per SPEC).
 const MAX_LINE_LEN: usize = 10 * 1024 * 1024;
 
 /// Split command string into [program, arg1, arg2, ...] respecting double/single quotes (shell-like).
@@ -23,12 +24,12 @@ fn split_command(cmd: &str) -> Vec<&str> {
     if rest.is_empty() {
       break;
     }
-    let (word, next) = if rest.starts_with('"') {
-      let end = rest[1..].find('"').map(|i| i + 1).unwrap_or(rest.len());
-      (&rest[1..end], rest.get((end + 1)..).unwrap_or(""))
-    } else if rest.starts_with('\'') {
-      let end = rest[1..].find('\'').map(|i| i + 1).unwrap_or(rest.len());
-      (&rest[1..end], rest.get((end + 1)..).unwrap_or(""))
+    let (word, next) = if let Some(stripped) = rest.strip_prefix('"') {
+      let end = stripped.find('"').unwrap_or(stripped.len());
+      (&stripped[..end], stripped.get(end + 1..).unwrap_or(""))
+    } else if let Some(stripped) = rest.strip_prefix('\'') {
+      let end = stripped.find('\'').unwrap_or(stripped.len());
+      (&stripped[..end], stripped.get(end + 1..).unwrap_or(""))
     } else {
       let pos = rest
         .find(|c: char| c.is_ascii_whitespace())
@@ -73,6 +74,7 @@ mod tests {
 /// Run the agent in Cursor CLI non-interactive mode: pass prompt as argument, read stream-json from stdout.
 /// Command string is split into argv (respecting quotes); prompt is appended as the last argument.
 /// Success: we see a line with `type: "result", subtype: "success"`.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_agent_cli(
   command: &str,
   workspace_path: &Path,

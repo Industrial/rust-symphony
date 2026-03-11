@@ -25,6 +25,7 @@ pub enum RunnerProtocol {
 }
 
 /// Run the agent using the configured protocol (codex or acp).
+#[allow(clippy::too_many_arguments)]
 pub async fn run_agent_with_protocol(
   protocol: RunnerProtocol,
   command: &str,

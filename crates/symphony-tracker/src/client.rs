@@ -11,7 +11,9 @@ use crate::TrackerError;
 use crate::filter::apply_label_filters;
 use crate::normalize::github_issue_to_domain;
 
+/// Maximum number of issues to request per GitHub API page.
 const PER_PAGE: u32 = 100;
+/// HTTP timeout for GitHub API requests (seconds).
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 
 /// Parse "owner/repo" into (owner, repo). Returns error if format invalid.
@@ -28,6 +30,7 @@ pub fn parse_issue_number(identifier: &str) -> Option<u64> {
   identifier.rsplit_once('#')?.1.parse().ok()
 }
 
+/// Build a reqwest client with timeout; errors if api_key is empty.
 fn make_client(api_key: &str) -> Result<reqwest::Client, TrackerError> {
   if api_key.is_empty() {
     return Err(TrackerError::MissingTrackerApiKey);
@@ -38,6 +41,7 @@ fn make_client(api_key: &str) -> Result<reqwest::Client, TrackerError> {
     .map_err(|e| TrackerError::GitHubApiRequest(e.to_string()))
 }
 
+/// Build the GitHub REST URL for repo issues (e.g. .../repos/owner/repo/issues?state=open).
 fn repo_issues_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -> String {
   let base = endpoint.trim_end_matches('/');
   format!("{}/repos/{}/{}/issues{}", base, owner, repo, path_suffix)

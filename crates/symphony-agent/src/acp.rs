@@ -11,9 +11,11 @@ use tokio::time::timeout;
 
 use crate::runner::{AgentExitReason, AgentRunOutcome, AgentRunnerError, AgentRunnerUpdate};
 
+/// Maximum line length when reading agent stdout (10 MiB per SPEC).
 const MAX_LINE_LEN: usize = 10 * 1024 * 1024;
 
 /// Run the agent using ACP: initialize → authenticate → session/new → session/prompt.
+#[allow(clippy::too_many_arguments)]
 /// Waits for session/prompt result (with stopReason); handles session/request_permission by allowing once.
 pub async fn run_agent_acp(
   command: &str,

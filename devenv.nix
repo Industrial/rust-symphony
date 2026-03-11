@@ -6,6 +6,31 @@
   pkgs-playwright = import inputs.nixpkgs-playwright {system = pkgs.stdenv.hostPlatform.system;};
   browsers = (builtins.fromJSON (builtins.readFile "${pkgs-playwright.playwright-driver}/browsers.json")).browsers;
   chromium-rev = (builtins.head (builtins.filter (x: x.name == "chromium") browsers)).revision;
+
+  # Moon from GitHub releases (x86_64-linux). See https://moonrepo.dev/docs/install
+  moon-version = "v2.0.4";
+  moon = pkgs.stdenv.mkDerivation {
+    pname = "moon-cli";
+    version = builtins.replaceStrings ["v"] [""] moon-version;
+    src = pkgs.fetchurl {
+      url = "https://github.com/moonrepo/moon/releases/download/${moon-version}/moon_cli-x86_64-unknown-linux-gnu.tar.xz";
+      sha256 = "0n7w3pmnwaxk0cy63ms97g609z696698a4qdrssnsa7cs8wgxxc8";
+    };
+    nativeBuildInputs = [pkgs.autoPatchelfHook];
+    buildInputs = [pkgs.stdenv.cc.cc.lib];
+    installPhase = ''
+      runHook preInstall
+      mkdir -p $out/bin
+      install -m755 moon $out/bin/moon
+      runHook postInstall
+    '';
+    meta = {
+      description = "Moon CLI (moonrepo)";
+      homepage = "https://moonrepo.dev";
+      license = pkgs.lib.licenses.mit;
+      platforms = pkgs.lib.platforms.linux;
+    };
+  };
 in {
   # Name of the project with version
   name = "rust-symphony";

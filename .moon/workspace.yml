@@ -17,5 +17,5 @@ projects:
   # Root workspace project for workspace-wide tasks
   - '.'
 vcs:
-  manager: 'git'
+  client: 'git'
   defaultBranch: 'main'

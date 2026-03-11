@@ -3,7 +3,7 @@
 # https://moonrepo.dev/docs/config/project
 id: 'rust-symphony'
 language: 'rust'
-type: 'application'
+layer: 'application'
 # Don't inherit check/test from rust.yml — those run per-crate only
 workspace:
   inheritedTasks:
