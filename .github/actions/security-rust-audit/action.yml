@@ -15,9 +15,11 @@ runs:
       run: cargo install cargo-audit
     - name: Run cargo-audit
       shell: bash
+      env:
+        AUDIT_ALLOW: ${{ inputs.audit-allow }}
       run: |
-        if [ -n "${{ inputs.audit-allow }}" ]; then
-          cargo audit --allow ${{ inputs.audit-allow }}
+        if [ -n "$AUDIT_ALLOW" ]; then
+          cargo audit --allow "$AUDIT_ALLOW"
         else
           cargo audit
         fi

@@ -14,14 +14,18 @@ runs:
   using: "composite"
   steps:
     - name: Run moon (devenv)
+      shell: bash
       env:
         MOON_TOOLCHAIN_FORCE_GLOBALS: rust
         MOON_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
         MOON_HEAD: ${{ github.sha }}
+        EVENT_NAME: ${{ github.event_name }}
+        USE_AFFECTED: ${{ inputs.use-affected }}
+        TARGETS: ${{ inputs.targets }}
       run: |
         set -euo pipefail
-        if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ inputs.use-affected }}" = "true" ]; then
-          devenv shell -- moon run --affected ${{ inputs.targets }}
+        if [ "$EVENT_NAME" = "pull_request" ] && [ "$USE_AFFECTED" = "true" ]; then
+          devenv shell -- moon run --affected $TARGETS
         else
-          devenv shell -- moon run ${{ inputs.targets }}
+          devenv shell -- moon run $TARGETS
         fi
