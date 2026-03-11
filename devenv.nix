@@ -8,12 +8,11 @@
   chromium-rev = (builtins.head (builtins.filter (x: x.name == "chromium") browsers)).revision;
 
   # Moon from GitHub releases (x86_64-linux). See https://moonrepo.dev/docs/install
-  moon-version = "v2.0.4";
   moon = pkgs.stdenv.mkDerivation {
     pname = "moon-cli";
-    version = builtins.replaceStrings ["v"] [""] moon-version;
+    version = "2.0.4";
     src = pkgs.fetchurl {
-      url = "https://github.com/moonrepo/moon/releases/download/${moon-version}/moon_cli-x86_64-unknown-linux-gnu.tar.xz";
+      url = "https://github.com/moonrepo/moon/releases/download/v2.0.4/moon_cli-x86_64-unknown-linux-gnu.tar.xz";
       sha256 = "0n7w3pmnwaxk0cy63ms97g609z696698a4qdrssnsa7cs8wgxxc8";
     };
     nativeBuildInputs = [pkgs.autoPatchelfHook];
@@ -34,6 +33,10 @@
 in {
   # Name of the project with version
   name = "rust-symphony";
+
+  dotenv = {
+    enable = true;
+  };
 
   # Languages
   languages = {
