@@ -311,13 +311,14 @@ async fn poll_tick(
     .active_states
     .as_deref()
     .unwrap_or_else(|| default_active.as_slice());
+  let exclude_labels = config.tracker.effective_exclude_labels();
   let candidates = match fetch_candidate_issues(
     &config.tracker.endpoint_or_default(),
     &config.tracker.api_key,
     &config.tracker.repo,
     active_states,
     config.tracker.include_labels.as_deref(),
-    config.tracker.exclude_labels.as_deref(),
+    exclude_labels.as_deref(),
   )
   .await
   {
@@ -552,6 +553,7 @@ mod tests {
         terminal_states: None,
         include_labels: None,
         exclude_labels: None,
+        claim_label: None,
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),

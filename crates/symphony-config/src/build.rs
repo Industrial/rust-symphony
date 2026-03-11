@@ -22,6 +22,7 @@ struct RawTracker {
   terminal_states: Option<Vec<String>>,
   include_labels: Option<Vec<String>>,
   exclude_labels: Option<Vec<String>>,
+  claim_label: Option<String>,
 }
 
 /// Raw runner map from workflow front matter.
@@ -110,6 +111,7 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
       .or_else(|| Some(vec!["closed".to_string()])),
     include_labels: tracker.include_labels,
     exclude_labels: tracker.exclude_labels,
+    claim_label: tracker.claim_label,
   };
 
   let runner_raw = raw
@@ -401,5 +403,28 @@ mod tests {
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(config.tracker.include_labels, Some(vec![]));
     assert_eq!(config.tracker.exclude_labels, Some(vec![]));
+  }
+
+  #[test]
+  fn from_workflow_config_tracker_claim_label_omitted() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert!(config.tracker.claim_label.is_none());
+  }
+
+  #[test]
+  fn from_workflow_config_tracker_claim_label_parsed() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "symphony-claimed" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert_eq!(
+      config.tracker.claim_label.as_deref(),
+      Some("symphony-claimed")
+    );
   }
 }

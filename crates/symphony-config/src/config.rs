@@ -24,6 +24,8 @@ pub struct TrackerConfig {
   pub include_labels: Option<Vec<String>>,
   /// SPEC_ADDENDUM_1 A.1.2: candidate must have none of these labels (if non-empty).
   pub exclude_labels: Option<Vec<String>>,
+  /// SPEC_ADDENDUM_1 A.2.1: label the agent adds when claiming; included in effective exclude so claimed issues are not re-dispatched.
+  pub claim_label: Option<String>,
 }
 
 impl TrackerConfig {
@@ -33,6 +35,17 @@ impl TrackerConfig {
       .as_deref()
       .unwrap_or("https://api.github.com")
       .to_string()
+  }
+
+  /// Exclude labels to use when fetching candidates: exclude_labels plus claim_label if set and not already present (SPEC_ADDENDUM_1 A.2.1).
+  pub fn effective_exclude_labels(&self) -> Option<Vec<String>> {
+    let mut base = self.exclude_labels.clone().unwrap_or_default();
+    if let Some(ref claim) = self.claim_label {
+      if !base.iter().any(|l| l.eq_ignore_ascii_case(claim)) {
+        base.push(claim.clone());
+      }
+    }
+    if base.is_empty() { None } else { Some(base) }
   }
 }
 
@@ -173,6 +186,7 @@ mod tests {
         terminal_states: None,
         include_labels: None,
         exclude_labels: None,
+        claim_label: None,
       },
       runner: RunnerConfig {
         command: "codex app-server".into(),
@@ -245,5 +259,88 @@ mod tests {
     assert_eq!(a.max_turns, 20);
     assert_eq!(a.max_retry_backoff_ms, 300_000);
     assert!(a.max_concurrent_agents_by_state.is_empty());
+  }
+
+  #[test]
+  fn effective_exclude_labels_none_when_both_empty() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: None,
+      claim_label: None,
+    };
+    assert!(t.effective_exclude_labels().is_none());
+  }
+
+  #[test]
+  fn effective_exclude_labels_exclude_only() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: Some(vec!["a".into(), "b".into()]),
+      claim_label: None,
+    };
+    assert_eq!(
+      t.effective_exclude_labels(),
+      Some(vec!["a".into(), "b".into()])
+    );
+  }
+
+  #[test]
+  fn effective_exclude_labels_claim_merged() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: Some(vec!["a".into()]),
+      claim_label: Some("symphony-claimed".into()),
+    };
+    let eff = t.effective_exclude_labels().unwrap();
+    assert_eq!(eff.len(), 2);
+    assert!(eff.contains(&"a".to_string()));
+    assert!(eff.contains(&"symphony-claimed".to_string()));
+  }
+
+  #[test]
+  fn effective_exclude_labels_claim_only() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: None,
+      claim_label: Some("claimed".into()),
+    };
+    assert_eq!(t.effective_exclude_labels(), Some(vec!["claimed".into()]));
+  }
+
+  #[test]
+  fn effective_exclude_labels_claim_already_in_exclude_no_duplicate() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: Some(vec!["a".into(), "claimed".into()]),
+      claim_label: Some("claimed".into()),
+    };
+    let eff = t.effective_exclude_labels().unwrap();
+    assert_eq!(eff.len(), 2);
+    assert_eq!(eff, vec!["a", "claimed"]);
   }
 }

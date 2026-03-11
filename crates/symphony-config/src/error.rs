@@ -48,6 +48,7 @@ mod tests {
       terminal_states: None,
       include_labels: None,
       exclude_labels: None,
+      claim_label: None,
     };
     let errs = t.validate().unwrap_err();
     let e = ConfigValidationError::Tracker(errs);
