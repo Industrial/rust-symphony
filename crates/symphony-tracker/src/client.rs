@@ -7,8 +7,8 @@ use serde_json::Value;
 
 use symphony_domain::Issue;
 
-use crate::filter::apply_label_filters;
 use crate::TrackerError;
+use crate::filter::apply_label_filters;
 use crate::normalize::github_issue_to_domain;
 
 const PER_PAGE: u32 = 100;

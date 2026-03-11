@@ -20,10 +20,8 @@ pub fn apply_label_filters(
 
   if let Some(include) = include_labels {
     if !include.is_empty() {
-      let include_lower: std::collections::HashSet<String> = include
-        .iter()
-        .map(|s| s.to_lowercase())
-        .collect();
+      let include_lower: std::collections::HashSet<String> =
+        include.iter().map(|s| s.to_lowercase()).collect();
       out.retain(|issue| {
         issue
           .labels
@@ -35,10 +33,8 @@ pub fn apply_label_filters(
 
   if let Some(exclude) = exclude_labels {
     if !exclude.is_empty() {
-      let exclude_lower: std::collections::HashSet<String> = exclude
-        .iter()
-        .map(|s| s.to_lowercase())
-        .collect();
+      let exclude_lower: std::collections::HashSet<String> =
+        exclude.iter().map(|s| s.to_lowercase()).collect();
       out.retain(|issue| {
         !issue
           .labels

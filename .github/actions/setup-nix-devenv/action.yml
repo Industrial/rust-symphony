@@ -8,6 +8,6 @@ runs:
   steps:
     - uses: DeterminateSystems/nix-installer-action@main
     - uses: DeterminateSystems/magic-nix-cache-action@main
-    - name: Install devenv
+    - name: Install devenv 2.x
       shell: bash
-      run: nix profile install nixpkgs#devenv
+      run: nix profile install github:cachix/devenv#default

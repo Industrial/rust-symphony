@@ -7,6 +7,8 @@ tracker:
   api_key: "$GITHUB_TOKEN"
   active_states: ["open"]
   terminal_states: ["closed"]
+  include_labels: ["symphony", "bot"]
+  exclude_labels: ["symphony-claimed", "wip"]
 
 # Command to run the coding agent in each workspace (required).
 # Change this to use a different agent; it is run with cwd = per-issue workspace.

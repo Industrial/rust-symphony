@@ -30,7 +30,7 @@ Symphony is a **scheduler/runner and tracker reader**. Ticket writes (state tran
 
 ## Quick Start
 
-**Prerequisites:** Rust toolchain, [devenv](https://devenv.sh/) for the intended environment.
+**Prerequisites:** Rust toolchain, [devenv](https://devenv.sh/) 2.x for the development environment.
 
 ```bash
 # Build
@@ -52,7 +52,7 @@ devenv shell -- cargo run -p symphony-runner -- /path/to/WORKFLOW.md
 
 - **Rust:** 2021 edition. Format with `cargo fmt`, lint with `cargo clippy`.
 - **Tasks:** [Moon](https://moonrepo.dev/) is used for workspace tasks. Each crate has `check` and `test`; run e.g. `devenv shell -- moon run symphony-domain:test`.
-- **Environment:** Use `devenv shell --` for all commands (see `.cursor/rules/shell.mdc`).
+- **Environment:** Use [devenv](https://devenv.sh/) 2.x and `devenv shell --` for all commands (see `.cursor/rules/shell.mdc`). Install with `nix profile install github:cachix/devenv#default`. On first run after config changes, use `Ctrl+Alt+R` in the shell to reload (2.0 native reloading).
 - **Quality:** Unit tests are required for all code (see [docs/16-testing.md](docs/16-testing.md)); implementation is not complete without them.
 
 ## License
