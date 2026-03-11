@@ -20,7 +20,9 @@ use symphony_orchestration::{
   available_slots, can_dispatch, release_claim, remove_retry_on_dispatch,
 };
 use symphony_prompt::render_prompt;
-use symphony_tracker::{fetch_candidate_issues, fetch_issue_states_by_ids};
+use symphony_tracker::{
+  fetch_candidate_issues, fetch_issue_states_by_ids, issue_passes_label_filters,
+};
 use symphony_workspace::{ensure_workspace_dir, run_hook};
 
 /// Abort handle for a spawned worker task (so we can cancel on TerminateWorker).
@@ -262,6 +264,7 @@ async fn poll_tick(
           .into_iter()
           .map(|i| (i.identifier.clone(), i))
           .collect();
+        let retry_exclude_labels = config.tracker.effective_exclude_labels();
         for (issue_id, identifier) in due {
           state.retry_attempts.remove(&issue_id);
           if let Some(issue) = fetched.get(&identifier) {
@@ -269,8 +272,14 @@ async fn poll_tick(
             let is_terminal = terminal
               .iter()
               .any(|s| s.eq_ignore_ascii_case(&issue.state));
+            let label_eligible = issue_passes_label_filters(
+              issue,
+              config.tracker.include_labels.as_deref(),
+              retry_exclude_labels.as_deref(),
+            );
             if is_active
               && !is_terminal
+              && label_eligible
               && !state.running.contains_key(&issue_id)
               && available_slots(state, max_concurrent) > 0
             {

@@ -56,10 +56,10 @@ All keys are optional. When absent, behaviour matches the base SPEC (no label-ba
 
 ## Definition of done (addendum steps 01–04)
 
-- [ ] **Step 01 — Label filtering:** Config keys parsed; include/exclude applied in candidate build; unit tests for config and filter logic; tracker integration tests with mocked issues; all tests pass.
-- [ ] **Step 02 — Durable claim:** Config key `claim_label` parsed; effective exclude list includes claim_label when set; unit tests; integration test that claimed issues are not re-dispatched; all tests pass.
-- [ ] **Step 03 — PR-driven workflow:** Config key `pr_open_label` parsed; workflow/prompt documents PR-driven flow; unit tests for config and any prompt injection; all tests pass.
-- [ ] **Step 04 — Integration:** Retry/reconciliation treat exclude-labelled issues as ineligible (unit or integration test); config summary matches implementation; all tests pass.
+- [x] **Step 01 — Label filtering:** Config keys parsed; include/exclude applied in candidate build; unit tests for config and filter logic; tracker integration tests with mocked issues; all tests pass.
+- [x] **Step 02 — Durable claim:** Config key `claim_label` parsed; effective exclude list includes claim_label when set; unit tests; integration test that claimed issues are not re-dispatched; all tests pass.
+- [x] **Step 03 — PR-driven workflow:** Config key `pr_open_label` parsed; workflow/prompt documents PR-driven flow; unit tests for config and any prompt injection; all tests pass.
+- [x] **Step 04 — Integration:** Retry/reconciliation treat exclude-labelled issues as ineligible (unit or integration test); config summary matches implementation; all tests pass.
 
 ---
 

@@ -10,7 +10,7 @@ mod normalize;
 mod client;
 
 pub use error::TrackerError;
-pub use filter::apply_label_filters;
+pub use filter::{apply_label_filters, issue_passes_label_filters};
 pub use normalize::github_issue_to_domain;
 
 #[cfg(feature = "client")]
