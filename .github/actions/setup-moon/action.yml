@@ -11,6 +11,7 @@ runs:
   using: "composite"
   steps:
     - name: Install moon
+      shell: bash
       run: |
         curl -fsSL https://moonrepo.dev/install/moon.sh | bash
         echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
