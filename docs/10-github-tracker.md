@@ -37,6 +37,10 @@ chrono = { version = "0.4", features = ["serde"] }
 - **Exclude PRs**: GitHub list endpoint returns both; filter items where `pull_request` is absent (or use a dedicated issues endpoint if available).
 - **Timeout**: `reqwest::Client::builder().timeout(Duration::from_secs(30))`.
 
+### Tracker is read-only; agent closes issues (SPEC §1, §7–8)
+
+The **orchestrator** only reads the tracker (list issues, single issue for reconciliation). It does not close issues or add comments. When a worker exits normally, the orchestrator schedules a short **continuation retry**; when that runs, it **re-fetches the current state** of those issues. If an issue is now in a **terminal state** (e.g. `closed`), the orchestrator releases the claim and does **not** re-dispatch. So to stop the runner from re-picking the same issue, the **coding agent** (or a human) must **close the issue** when done, using whatever tools the agent has (e.g. GitHub CLI in the workspace, or a comment for a maintainer to close). See WORKFLOW.md prompt instructions.
+
 ### Token permissions (SPEC §11.1–11.5)
 
 The orchestrator **only reads** issues (no writes). Required API calls:

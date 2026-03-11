@@ -45,6 +45,8 @@ The text below is the prompt sent to the agent for each issue. Edit it to change
 Liquid variables: `issue` (title, identifier, state, description, url, labels), optional `attempt` (retry number).
 See https://shopify.github.io/liquid/ for syntax.
 
+**Tracker and completion:** The runner only **reads** the tracker (no write access). When the agent is done, it should **close the issue** (or move it to a terminal state) using its own tools (e.g. GitHub CLI, API, or a comment for a human to close). Once the issue is closed, the runner will stop re-dispatching it on the next poll.
+
 ---
 
 # Symphony workflow — RustSymphony
@@ -82,3 +84,4 @@ This is **attempt {{ attempt }}**. A previous run may have been interrupted or f
 3. Run tests and fix any failures (`devenv shell -- cargo test`, `devenv shell -- moon run :test` as appropriate).
 4. Follow project conventions (see `.cursor/rules`, `docs/`, and existing code).
 5. When done, summarize changes and any follow-ups in a comment or handoff as defined by the project's workflow.
+6. **Close this issue** when the work is complete (e.g. via `gh issue close` or the GitHub UI), so the runner stops picking it up. If you cannot close issues, add a clear "ready to close" comment so a maintainer can close it.
