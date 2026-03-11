@@ -2,6 +2,11 @@
 $schema: './cache/schemas/workspace.json'
 # extends: './shared/workspace.yml'
 
+# Never hash build outputs—only source and config. Avoids warnings when target/
+# is cleaned or incremental artifacts are missing.
+hasher:
+  ignorePatterns:
+    - '**/target/**'
 # Rust workspace crates
 projects:
   - 'crates/*'

@@ -14,7 +14,7 @@ jobs:
     name: CI (checks → integration → e2e)
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/checkout
+      - uses: actions/checkout@v4
         with:
           fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 1 }}
       - uses: ./.github/actions/setup-nix-devenv
