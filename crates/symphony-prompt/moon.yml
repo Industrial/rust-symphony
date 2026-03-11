@@ -1,0 +1,27 @@
+# Moon project config for symphony-prompt crate.
+language: 'rust'
+layer: 'library'
+tasks:
+  check:
+    description: 'Run cargo check for the crate'
+    command: 'cargo'
+    args: ['check']
+    deps: ['rust-symphony:format']
+    inputs:
+      - 'Cargo.toml'
+      - '/Cargo.lock'
+      - 'src/**/*'
+    options:
+      cache: true
+  test:
+    description: 'Run cargo test for the crate'
+    command: 'cargo'
+    args: ['test']
+    deps: ['check']
+    inputs:
+      - 'Cargo.toml'
+      - '/Cargo.lock'
+      - 'src/**/*'
+      - 'tests/**/*'
+    options:
+      cache: true

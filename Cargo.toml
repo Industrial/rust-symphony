@@ -8,4 +8,5 @@ members = [
   "crates/symphony-workspace",
   "crates/symphony-agent",
   "crates/symphony-tracker",
+  "crates/symphony-prompt",
 ]

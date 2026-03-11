@@ -1,0 +1,11 @@
+[package]
+name = "symphony-prompt"
+version = "0.1.0"
+edition = "2021"
+description = "Prompt construction with Liquid templating (SPEC §12)"
+
+[dependencies]
+symphony-domain = { path = "../symphony-domain" }
+liquid = "0.26"
+serde_json = "1"
+thiserror = "2"
