@@ -16,11 +16,28 @@ use symphony_tracker::fetch_issues_by_states;
 use symphony_workflow::{load_workflow, resolve_workflow_path};
 use symphony_workspace::workspace_path;
 
-use crate::loop_::run_orchestrator;
+use crate::loop_::{dry_run_one_poll, run_orchestrator};
 
 mod loop_;
 
 const WORKFLOW_RELOAD_POLL_SECS: u64 = 5;
+
+fn print_usage() {
+  eprintln!(
+    r#"symphony [OPTIONS] [WORKFLOW_PATH]
+
+Run the Symphony orchestrator: poll the tracker, dispatch agents per workflow config.
+
+Options:
+  --dry-run    Run one poll cycle only: load config and workflow, fetch candidates,
+               apply sort and concurrency rules, log what would be dispatched, then exit.
+               No workers are started, no workspaces created, no tracker writes.
+  -h, --help   Show this help.
+
+WORKFLOW_PATH  Path to WORKFLOW.md (optional; default from env or repo root).
+"#
+  );
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -31,12 +48,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     )
     .init();
 
-  let workflow_path_arg = std::env::args().nth(1).map(PathBuf::from);
+  let args = std::env::args().skip(1);
+  let mut dry_run = false;
+  let mut workflow_path_arg: Option<PathBuf> = None;
+  for arg in args {
+    match arg.as_str() {
+      "--dry-run" => dry_run = true,
+      "-h" | "--help" => {
+        print_usage();
+        return Ok(());
+      }
+      _ if !arg.starts_with('-') => {
+        workflow_path_arg = Some(PathBuf::from(arg));
+        break;
+      }
+      _ => {}
+    }
+  }
+
   let resolved_path = resolve_workflow_path(workflow_path_arg.clone())?;
   let content = std::fs::read_to_string(&resolved_path)?;
   let definition = load_workflow(&content)?;
   let config = from_workflow_config(&definition.config)?;
   config.validate_dispatch()?;
+
+  if dry_run {
+    dry_run_one_poll(&config).await?;
+    return Ok(());
+  }
 
   let poll_interval_ms = config.polling.interval_ms;
   let state = OrchestratorState {

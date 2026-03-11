@@ -25,6 +25,45 @@ use symphony_tracker::{
 };
 use symphony_workspace::{ensure_workspace_dir, run_hook};
 
+/// One poll cycle in dry-run: fetch candidates, sort, apply concurrency; log what would be dispatched; no workers or tracker writes.
+pub async fn dry_run_one_poll(
+  config: &ServiceConfig,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+  let max_concurrent = config.agent.max_concurrent_agents;
+  let default_active: Vec<String> = vec!["open".to_string()];
+  let active_states = config
+    .tracker
+    .active_states
+    .as_deref()
+    .unwrap_or_else(|| default_active.as_slice());
+  let exclude_labels = config.tracker.effective_exclude_labels();
+  let candidates = fetch_candidate_issues(
+    &config.tracker.endpoint_or_default(),
+    &config.tracker.api_key,
+    &config.tracker.repo,
+    active_states,
+    config.tracker.include_labels.as_deref(),
+    exclude_labels.as_deref(),
+  )
+  .await?;
+  let mut sorted = candidates;
+  symphony_orchestration::sort_for_dispatch(&mut sorted);
+  let num_candidates = sorted.len();
+  let would_dispatch_count = num_candidates.min(max_concurrent as usize);
+  let would_dispatch: Vec<&str> = sorted
+    .iter()
+    .take(would_dispatch_count)
+    .map(|i| i.identifier.as_str())
+    .collect();
+  info!(
+    candidates = num_candidates,
+    would_dispatch = would_dispatch_count,
+    identifiers = ?would_dispatch,
+    "dry-run: one poll cycle complete (no workers started, no tracker writes)"
+  );
+  Ok(())
+}
+
 /// Abort handle for a spawned worker task (so we can cancel on TerminateWorker).
 pub type WorkerHandle = tokio::task::JoinHandle<()>;
 
