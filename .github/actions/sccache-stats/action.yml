@@ -8,4 +8,5 @@ runs:
   steps:
     - name: Show sccache statistics
       if: always()
+      shell: bash
       run: sccache --show-stats

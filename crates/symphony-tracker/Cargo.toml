@@ -3,6 +3,7 @@ name = "symphony-tracker"
 version = "0.1.0"
 edition = "2021"
 description = "Issue tracker integration: GitHub normalization and errors (SPEC §11)"
+license = "CC-BY-SA-4.0"
 
 [dependencies]
 symphony-domain = { path = "../symphony-domain" }

@@ -3,6 +3,7 @@ name = "symphony-orchestration"
 version = "0.1.0"
 edition = "2021"
 description = "Orchestrator messages and claim state (SPEC §7)"
+license = "CC-BY-SA-4.0"
 
 [dependencies]
 symphony-domain = { path = "../symphony-domain" }
