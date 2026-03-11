@@ -46,7 +46,11 @@ mod tests {
     match &r {
       Ok(p) => {
         assert_eq!(p.file_name().unwrap(), "WORKFLOW.md");
-        assert!(p.parent().unwrap().ends_with(std::env::current_dir().unwrap()));
+        assert!(
+          p.parent()
+            .unwrap()
+            .ends_with(std::env::current_dir().unwrap())
+        );
       }
       Err(WorkflowError::MissingWorkflowFile(p)) => {
         assert_eq!(p.file_name().unwrap(), "WORKFLOW.md");

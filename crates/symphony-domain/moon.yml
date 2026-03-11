@@ -4,6 +4,7 @@ language: 'rust'
 layer: 'library'
 tasks:
   check:
+    deps: ['rust-symphony:format']
     description: 'Run cargo check for the crate'
     command: 'cargo'
     args: ['check']

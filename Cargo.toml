@@ -1,3 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/symphony-domain", "crates/symphony-workflow", "crates/symphony-config"]
+members = [
+  "crates/symphony-domain",
+  "crates/symphony-workflow",
+  "crates/symphony-config",
+]

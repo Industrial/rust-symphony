@@ -1,6 +1,7 @@
 # Root-level workspace tasks
 # These tasks operate on the entire workspace, not individual projects
 # https://moonrepo.dev/docs/config/project
+id: 'rust-symphony'
 language: 'rust'
 type: 'application'
 # Don't inherit check/test from rust.yml — those run per-crate only
@@ -10,9 +11,8 @@ workspace:
       - check
       - test
 tasks:
-  # Format entire workspace with treefmt
+  # Format entire workspace
   format:
-    description: 'Format workspace with treefmt'
     command: 'treefmt'
     inputs:
       - 'treefmt.toml'

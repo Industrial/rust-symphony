@@ -7,7 +7,7 @@ mod config;
 mod error;
 mod resolve;
 
+pub use build::from_workflow_config;
 pub use config::{RunnerConfig, ServiceConfig, TrackerConfig};
 pub use error::{ConfigError, ConfigValidationError};
-pub use build::from_workflow_config;
 pub use resolve::resolve_var;

@@ -1,0 +1,9 @@
+[package]
+name = "symphony-orchestration"
+version = "0.1.0"
+edition = "2021"
+description = "Orchestrator messages and claim state (SPEC §7)"
+
+[dependencies]
+symphony-domain = { path = "../symphony-domain" }
+serde = { version = "1", features = ["derive"] }
