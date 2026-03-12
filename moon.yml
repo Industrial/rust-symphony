@@ -36,6 +36,32 @@ tasks:
       - 'Cargo.lock'
     options:
       outputStyle: buffer-only-failure
+  # Run all workspace tests via cargo-nextest (faster, better parallelism)
+  test-nextest:
+    command: 'cargo'
+    args: ['nextest', 'run']
+    deps: ['~:format']
+    inputs:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/**/*.rs'
+    options:
+      cache: true
+      outputStyle: buffer-only-failure
+  # Code coverage via cargo-llvm-cov; thresholds and packages in bin/test-coverage
+  test-coverage:
+    command: 'bash'
+    args: ['bin/test-coverage']
+    deps: ['~:format']
+    inputs:
+      - 'bin/test-coverage'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/symphony-agent/**/*.rs'
+      - 'crates/symphony-domain/**/*.rs'
+    options:
+      cache: false
+      outputStyle: buffer-only-failure
   # Check documentation
   check-docs:
     command: 'bash'
@@ -46,47 +72,68 @@ tasks:
       - '**/*.rs'
     options:
       outputStyle: buffer-only-failure
-  # # Integration tests: rust-symphony new then run template bin/test-integration
-  # test-integration:
-  #   command: 'bash'
-  #   args: ['bin/test-integration']
-  #   inputs:
-  #     - 'bin/test-integration'
-  #     - 'Cargo.toml'
-  #     - 'Cargo.lock'
-  #     - 'crates/**/*.rs'
-  #     - 'crates/symphony-agent/templates/**/*'
-  # # E2E tests: rust-symphony new then run template bin/test-e2e (Playwright in templates/default/test/e2e)
-  # test-e2e:
-  #   command: 'bash'
-  #   args: ['bin/test-e2e']
-  #   inputs:
-  #     - 'bin/test-e2e'
-  #     - 'Cargo.toml'
-  #     - 'Cargo.lock'
-  #     - 'crates/**/*.rs'
-  #     - 'crates/symphony-agent/templates/**/*'
-  # # Monorepo check (tsgo + Biome at root)
-  # check:
-  #   deps: ['~:format']
-  #   command: 'bun'
-  #   args: ['run', 'check']
-  #   inputs:
-  #     - 'package.json'
-  #     - 'bun.lock'
-  #     - 'biome.json'
-  #     - 'tsconfig.json'
-  #     - 'packages/**/*.ts'
-  #     - 'packages/**/*.tsx'
-  # # Monorepo unit tests (root); runs after check; only *.test.* (excludes Playwright .spec.ts)
-  # test:
-  #   deps: ['~:check']
-  #   command: 'bun'
-  #   args: ['test', '.test.']
-  #   inputs:
-  #     - 'package.json'
-  #     - 'bun.lock'
-  #     - 'packages/**/*.ts'
-  #     - 'packages/**/*.tsx'
-  #     - '**/*.test.ts'
-  #     - '**/*.test.tsx'
+  # Inline WORKFLOW.md into README between markers (single source of truth: WORKFLOW.md)
+  inline-workflow:
+    command: 'bash'
+    args: ['scripts/inline-workflow-into-readme.sh']
+    inputs:
+      - 'WORKFLOW.md'
+      - 'README.md'
+      - 'scripts/inline-workflow-into-readme.sh'
+    options:
+      cache: false
+  # Verify README is in sync with WORKFLOW.md (fails if running inline-workflow would change README)
+  check-inline-workflow:
+    command: 'bash'
+    args: ['scripts/inline-workflow-into-readme.sh', '--check']
+    inputs:
+      - 'WORKFLOW.md'
+      - 'README.md'
+      - 'scripts/inline-workflow-into-readme.sh'
+    options:
+      cache: false
+
+# # Integration tests: rust-symphony new then run template bin/test-integration
+# test-integration:
+#   command: 'bash'
+#   args: ['bin/test-integration']
+#   inputs:
+#     - 'bin/test-integration'
+#     - 'Cargo.toml'
+#     - 'Cargo.lock'
+#     - 'crates/**/*.rs'
+#     - 'crates/symphony-agent/templates/**/*'
+# # E2E tests: rust-symphony new then run template bin/test-e2e (Playwright in templates/default/test/e2e)
+# test-e2e:
+#   command: 'bash'
+#   args: ['bin/test-e2e']
+#   inputs:
+#     - 'bin/test-e2e'
+#     - 'Cargo.toml'
+#     - 'Cargo.lock'
+#     - 'crates/**/*.rs'
+#     - 'crates/symphony-agent/templates/**/*'
+# # Monorepo check (tsgo + Biome at root)
+# check:
+#   deps: ['~:format']
+#   command: 'bun'
+#   args: ['run', 'check']
+#   inputs:
+#     - 'package.json'
+#     - 'bun.lock'
+#     - 'biome.json'
+#     - 'tsconfig.json'
+#     - 'packages/**/*.ts'
+#     - 'packages/**/*.tsx'
+# # Monorepo unit tests (root); runs after check; only *.test.* (excludes Playwright .spec.ts)
+# test:
+#   deps: ['~:check']
+#   command: 'bun'
+#   args: ['test', '.test.']
+#   inputs:
+#     - 'package.json'
+#     - 'bun.lock'
+#     - 'packages/**/*.ts'
+#     - 'packages/**/*.tsx'
+#     - '**/*.test.ts'
+#     - '**/*.test.tsx'
