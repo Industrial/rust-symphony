@@ -9,6 +9,7 @@ env:
   RUSTC_WRAPPER: sccache
 permissions:
   contents: read
+  pull-requests: write
 jobs:
   ci:
     name: CI (checks → integration → e2e)
@@ -36,38 +37,37 @@ jobs:
           MOON_TOOLCHAIN_FORCE_GLOBALS: rust
         run: |
           unset MOON_BASE MOON_HEAD
-          devenv shell -- moon run :coverage
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: target/llvm-cov/html
-          retention-days: 7
-      - name: Upload coverage to GitHub Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: target/llvm-cov/html
-      - uses: ./.github/actions/sccache-stats
-  # Deploys coverage HTML to GitHub Pages. Enable in repo: Settings → Pages → Source: GitHub Actions.
-  deploy-pages:
-    name: Deploy coverage to GitHub Pages
-    needs: ci
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment: github-pages
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-      - name: Add report link to summary
+          devenv shell -- moon run :coverage 2>&1 | tee coverage-output.txt
+      - name: Find existing coverage comment
+        if: github.event_name == 'pull_request'
+        id: find-comment
         run: |
-          OWNER="${GITHUB_REPOSITORY%%/*}"
-          REPO="${GITHUB_REPOSITORY#*/}"
+          COMMENT_ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/${{ github.event.pull_request.number }}/comments" --jq '.[] | select(.body != null and (.body | contains("<!-- coverage-report -->"))) | .id' | head -1)
+          echo "id=${COMMENT_ID:-}" >> "$GITHUB_OUTPUT"
+      - name: Prepare coverage comment body
+        if: github.event_name == 'pull_request'
+        run: |
+          max_len=60000
+          body=$(cat coverage-output.txt)
+          [ "${#body}" -gt "$max_len" ] && body="...(truncated)"$'\n\n'"${body: -$max_len}"
+          escaped=$(printf '%s' "$body" | sed 's/```/\\`\\`\\`/g')
           {
-            echo "### Coverage report"
+            echo "## Coverage output"
             echo ""
-            echo "**[View coverage report](https://${OWNER}.github.io/${REPO}/)**"
-          } >> "$GITHUB_STEP_SUMMARY"
+            echo "<!-- coverage-report -->"
+            echo ""
+            echo '```' 
+            printf '%s' "$escaped"
+            echo ""
+            echo '```'
+          } > coverage-comment.md
+      - name: Comment coverage output on PR
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.id }}
+          body-path: coverage-comment.md
+          edit-mode: replace
+      - uses: ./.github/actions/sccache-stats
