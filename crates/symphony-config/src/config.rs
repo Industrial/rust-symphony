@@ -1,4 +1,7 @@
 //! Typed config structs and dispatch validation (SPEC §6.3, §6.4).
+//!
+//! **SPEC_ADDENDUM_2 B.9 config keys:** `fix_pr` (top-level, optional bool, default false);
+//! `tracker.mention_handle` (optional string). When fix_pr is false or omitted, fix-PR behaviour is disabled.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
