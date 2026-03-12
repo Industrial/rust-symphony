@@ -38,6 +38,11 @@ in {
     enable = true;
   };
 
+  cachix = {
+    pull = ["rust-symphony"];
+    push = "rust-symphony";
+  };
+
   # Languages
   languages = {
     javascript = {
