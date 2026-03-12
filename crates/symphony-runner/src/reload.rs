@@ -81,6 +81,7 @@ mod tests {
         pr_open_label: None,
         fix_pr_head_branch_pattern: None,
         mention_handle: None,
+        pr_base_branch: None,
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),

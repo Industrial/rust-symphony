@@ -8,4 +8,4 @@ mod error;
 mod render;
 
 pub use error::PromptError;
-pub use render::render_prompt;
+pub use render::{WorkflowPromptContext, render_prompt};

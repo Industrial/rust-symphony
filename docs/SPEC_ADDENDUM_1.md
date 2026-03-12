@@ -65,13 +65,20 @@ A **claim** is the guarantee that at most one worker is assigned to an issue at 
 
 The workflow MAY define a PR-driven handoff: the worker implements the task on a branch, opens a pull request, comments on the issue, then exits. The worker does not merge the PR; a human merges, and the issue is closed (e.g. via “Fixes #N” in the PR).
 
+### A.3.0 Base branch (worker branches and PR target)
+
+- **Config key:** `tracker.pr_base_branch` (optional; string).
+- **Semantics:** The branch from which worker branches MUST be created and to which pull requests MUST target. When unset, the default is `main`. Repositories that use a different default (e.g. `develop`) MAY set this key.
+- **Worker behaviour:** The worker MUST create its per-issue branch from this base (e.g. fetch and checkout the base branch, then create `symphony/issue-<number>` from it). Workspace setup (e.g. `after_create` hook) and/or prompt instructions MUST make this explicit.
+- **PR target:** When opening a PR, the worker MUST target this same branch (e.g. `gh pr create --base <pr_base_branch>` or equivalent).
+
 ### A.3.1 Branch and work
 
-- The worker works in the per-issue workspace (e.g. a git worktree). It MUST use a single branch per issue (e.g. `symphony/issue-<number>` or a configurable naming convention). All changes are committed on that branch.
+- The worker works in the per-issue workspace (e.g. a git worktree). It MUST use a single branch per issue (e.g. `symphony/issue-<number>` or a configurable naming convention), created from the configured base branch (A.3.0). All changes are committed on that branch.
 
 ### A.3.2 Pull request
 
-- When implementation is ready, the worker MUST open a pull request from that branch to the default branch. The PR body SHOULD reference the issue (e.g. “Fixes #N”) so that merging the PR will close the issue (tracker behaviour).
+- When implementation is ready, the worker MUST open a pull request from that branch to the configured base branch (A.3.0; default `main`). The PR body SHOULD reference the issue (e.g. “Fixes #N”) so that merging the PR will close the issue (tracker behaviour).
 - The worker MUST NOT merge the PR. Merging is performed by a human.
 
 ### A.3.3 Comment on issue
@@ -109,6 +116,7 @@ The workflow MAY define a PR-driven handoff: the worker implements the task on a
 | `tracker.include_labels` | A.1.1 | optional list of strings | Candidate must have at least one of these labels. |
 | `tracker.exclude_labels` | A.1.2 | optional list of strings | Candidate must have none of these labels. |
 | `tracker.claim_label` | A.2.1 | optional string | Label the agent adds when claiming; should be in exclude_labels. |
+| `tracker.pr_base_branch` | A.3.0 | optional string | Base branch for worker branches and PR target; default `main`. |
 | `tracker.pr_open_label` | A.3.6 | optional string | Optional label when PR is open; should be in exclude_labels if used. |
 
-All keys are optional. When absent, behaviour matches the base SPEC (no label-based filtering, no claim label semantics).
+All keys are optional. When absent, behaviour matches the base SPEC (no label-based filtering, no claim label semantics). The prompt template MAY expose the effective base branch (e.g. as a Liquid variable `workflow.pr_base_branch`) so the agent can use it for checkout and `gh pr create --base`.
