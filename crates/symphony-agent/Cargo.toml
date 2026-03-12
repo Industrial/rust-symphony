@@ -1,6 +1,6 @@
 [package]
 name = "symphony-agent"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "Agent runner protocol: NDJSON messages (SPEC §10)"
 license = "CC-BY-SA-4.0"
