@@ -21,9 +21,10 @@ use symphony_orchestration::{
 };
 use symphony_prompt::render_prompt;
 use symphony_tracker::{
-  fetch_candidate_issues, fetch_check_runs_for_ref, fetch_commit_status_for_ref,
-  fetch_has_qualifying_mention, fetch_issue_states_by_ids, fetch_issues_with_label,
-  issue_passes_label_filters, parse_issue_number, resolve_pr_for_issue,
+  check_run_conclusion_is_failed, commit_status_state_is_failed, fetch_candidate_issues,
+  fetch_check_runs_for_ref, fetch_commit_status_for_ref, fetch_has_qualifying_mention,
+  fetch_issue_states_by_ids, fetch_issues_with_label, issue_passes_label_filters,
+  parse_issue_number, resolve_pr_for_issue,
 };
 use symphony_workspace::{ensure_workspace_dir, ensure_worktree_dir, run_hook};
 
@@ -430,6 +431,7 @@ async fn dispatch_new_candidates(
                 let api_key = &config.tracker.api_key;
                 let repo = &config.tracker.repo;
 
+                // SPEC_ADDENDUM_2 B.4: dispatch if any_check_failed || has_qualifying_mention; otherwise wait.
                 let any_check_failed = match fetch_check_runs_for_ref(
                   &endpoint,
                   api_key,
@@ -438,11 +440,9 @@ async fn dispatch_new_candidates(
                 )
                 .await
                 {
-                  Ok(runs) => runs.iter().any(|r| {
-                    r.conclusion.as_deref().map_or(false, |c| {
-                      matches!(c, "failure" | "cancelled" | "timed_out" | "action_required")
-                    })
-                  }),
+                  Ok(runs) => runs
+                    .iter()
+                    .any(|r| check_run_conclusion_is_failed(r.conclusion.as_deref())),
                   Err(e) => {
                     debug!(%issue.id, %e, "fetch check runs for fix-PR failed, treating as no failure");
                     false
@@ -451,10 +451,7 @@ async fn dispatch_new_candidates(
 
                 let commit_failed = if !any_check_failed {
                   match fetch_commit_status_for_ref(&endpoint, api_key, repo, &pr.head_ref).await {
-                    Ok(status) => {
-                      let s = status.state.as_str();
-                      s == "failure" || s == "error"
-                    }
+                    Ok(status) => commit_status_state_is_failed(&status.state),
                     Err(e) => {
                       debug!(%issue.id, %e, "fetch commit status for fix-PR failed, treating as no failure");
                       false

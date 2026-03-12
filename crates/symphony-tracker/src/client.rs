@@ -309,6 +309,27 @@ pub async fn resolve_pr_for_issue(
   Ok(pr)
 }
 
+/// Whether a check run conclusion is considered **failed** (SPEC_ADDENDUM_2 B.4, B.6).
+/// Failed means: at least one check run has a conclusion that indicates failure.
+/// Values treated as failed: `failure`, `error`, `cancelled`, `timed_out`, `action_required`
+/// (GitHub Checks API conclusions). Returns false for `success`, `skipped`, or when status is not yet completed.
+#[inline]
+pub fn check_run_conclusion_is_failed(conclusion: Option<&str>) -> bool {
+  conclusion.map_or(false, |c| {
+    matches!(
+      c,
+      "failure" | "error" | "cancelled" | "timed_out" | "action_required"
+    )
+  })
+}
+
+/// Whether a combined commit status state is considered **failed** (SPEC_ADDENDUM_2 B.4, B.6).
+/// Values treated as failed: `failure`, `error` (GitHub commit status API).
+#[inline]
+pub fn commit_status_state_is_failed(state: &str) -> bool {
+  matches!(state, "failure" | "error")
+}
+
 /// Fetch check runs for a commit ref (SPEC_ADDENDUM_2 B.3). Ref can be branch name or SHA.
 /// Returns all check runs (paginated); caller determines if any have failed conclusion.
 pub async fn fetch_check_runs_for_ref(
@@ -583,5 +604,30 @@ mod tests {
   fn repo_issues_url_trim_trailing_slash() {
     let url = GitHubApiClient::repo_issues_url("https://api.github.com/", "a", "b", "/42");
     assert_eq!(url, "https://api.github.com/repos/a/b/issues/42");
+  }
+
+  // SPEC_ADDENDUM_2 B.4, B.6: dispatch condition and definition of "failed" checks.
+  #[test]
+  fn check_run_conclusion_is_failed_failure() {
+    assert!(check_run_conclusion_is_failed(Some("failure")));
+    assert!(check_run_conclusion_is_failed(Some("error")));
+    assert!(check_run_conclusion_is_failed(Some("cancelled")));
+    assert!(check_run_conclusion_is_failed(Some("timed_out")));
+    assert!(check_run_conclusion_is_failed(Some("action_required")));
+  }
+
+  #[test]
+  fn check_run_conclusion_is_failed_success_or_pending() {
+    assert!(!check_run_conclusion_is_failed(None));
+    assert!(!check_run_conclusion_is_failed(Some("success")));
+    assert!(!check_run_conclusion_is_failed(Some("skipped")));
+  }
+
+  #[test]
+  fn test_commit_status_state_is_failed() {
+    assert!(commit_status_state_is_failed("failure"));
+    assert!(commit_status_state_is_failed("error"));
+    assert!(!commit_status_state_is_failed("pending"));
+    assert!(!commit_status_state_is_failed("success"));
   }
 }
