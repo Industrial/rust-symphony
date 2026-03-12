@@ -319,7 +319,7 @@ pub async fn resolve_pr_for_issue(
 /// (GitHub Checks API conclusions). Returns false for `success`, `skipped`, or when status is not yet completed.
 #[inline]
 pub fn check_run_conclusion_is_failed(conclusion: Option<&str>) -> bool {
-  conclusion.map_or(false, |c| {
+  conclusion.is_some_and(|c| {
     matches!(
       c,
       "failure" | "error" | "cancelled" | "timed_out" | "action_required"
