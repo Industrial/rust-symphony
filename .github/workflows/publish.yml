@@ -65,6 +65,9 @@ jobs:
     needs: validate
     uses: ./.github/workflows/ci.yml
     secrets: inherit
+    permissions:
+      contents: read
+      pull-requests: write
   # Release-only: build release binary and verify publish (CI does not run these)
   build-release-and-verify:
     name: 📦 Release binary & verify publish
