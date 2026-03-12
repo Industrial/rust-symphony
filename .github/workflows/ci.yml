@@ -30,4 +30,15 @@ jobs:
         with:
           targets: ":format :check :build :test :audit :check-docs"
           use-affected: "true"
+      - name: Run coverage
+        uses: ./.github/actions/run-devenv-moon
+        with:
+          targets: ":coverage"
+          use-affected: "false"
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/llvm-cov/html
+          retention-days: 7
       - uses: ./.github/actions/sccache-stats

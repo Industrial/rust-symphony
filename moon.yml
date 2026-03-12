@@ -36,6 +36,19 @@ tasks:
       - 'Cargo.lock'
     options:
       outputStyle: buffer-only-failure
+  # Test coverage with llvm-cov (run nextest under coverage, output HTML report)
+  coverage:
+    description: 'Run tests with llvm-cov and generate HTML coverage report'
+    command: 'cargo'
+    args: ['llvm-cov', 'nextest', '--html', '--output-dir', 'target/llvm-cov/html']
+    deps: ['~:format']
+    inputs:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '**/*.rs'
+    options:
+      cache: false
+      outputStyle: buffer-only-failure
   # Check documentation
   check-docs:
     command: 'bash'
