@@ -139,12 +139,12 @@ impl Default for PollingConfig {
   }
 }
 
-/// Workspace config (SPEC §6.4). Root is resolved and absolute.
-/// When main_repo_path is set, per-issue workspaces are created as git worktrees (SPEC_ADDENDUM_1 A.3.1).
+/// Git worktree config (SPEC §6.4). Root is resolved and absolute.
+/// When main_repo_path is set, per-issue git worktrees are created (SPEC_ADDENDUM_1 A.3.1).
 #[derive(Debug, Clone)]
-pub struct WorkspaceConfig {
+pub struct WorktreeConfig {
   pub root: PathBuf,
-  /// Path to the main git repo (worktree or clone). When set, ensure_worktree is used so each issue gets a worktree.
+  /// Path to the main git repo (worktree or clone). When set, ensure_worktree_dir is used so each issue gets a git worktree.
   pub main_repo_path: Option<PathBuf>,
 }
 
@@ -197,7 +197,7 @@ pub struct ServiceConfig {
   pub tracker: TrackerConfig,
   pub runner: RunnerConfig,
   pub polling: PollingConfig,
-  pub workspace: WorkspaceConfig,
+  pub worktree: WorktreeConfig,
   pub hooks: HooksConfig,
   pub agent: AgentConfig,
 }
@@ -246,8 +246,8 @@ mod tests {
         stall_timeout_ms: None,
       },
       polling: PollingConfig::default(),
-      workspace: WorkspaceConfig {
-        root: std::env::temp_dir().join("symphony_workspaces"),
+      worktree: WorktreeConfig {
+        root: std::env::temp_dir().join("symphony_worktrees"),
         main_repo_path: None,
       },
       hooks: HooksConfig::default(),

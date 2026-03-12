@@ -26,10 +26,10 @@ mod tests {
   #[test]
   fn path_serde_roundtrip() {
     let w = Wrapper {
-      path: PathBuf::from("/tmp/workspace/sub"),
+      path: PathBuf::from("/tmp/worktree/sub"),
     };
     let j = serde_json::to_string(&w).unwrap();
-    assert!(j.contains("/tmp/workspace/sub"));
+    assert!(j.contains("/tmp/worktree/sub"));
     let w2: Wrapper = serde_json::from_str(&j).unwrap();
     assert_eq!(w2.path, w.path);
   }

@@ -69,7 +69,7 @@ The workflow MAY define a PR-driven handoff: the worker implements the task on a
 
 - **Config key:** `tracker.pr_base_branch` (optional; string).
 - **Semantics:** The branch from which worker branches MUST be created and to which pull requests MUST target. When unset, the default is `main`. Repositories that use a different default (e.g. `develop`) MAY set this key.
-- **Worker behaviour:** The worker MUST create its per-issue branch from this base (e.g. fetch and checkout the base branch, then create `symphony/issue-<number>` from it). Workspace setup (e.g. `after_create` hook) and/or prompt instructions MUST make this explicit.
+- **Worker behaviour:** The worker MUST create its per-issue branch from this base (e.g. fetch and checkout the base branch, then create `symphony/issue-<number>` from it). Git worktree setup (e.g. `after_create` hook) and/or prompt instructions MUST make this explicit.
 - **PR target:** When opening a PR, the worker MUST target this same branch (e.g. `gh pr create --base <pr_base_branch>` or equivalent).
 
 ### A.3.1 Branch and work

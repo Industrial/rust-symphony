@@ -64,7 +64,7 @@ pub async fn run_orchestrator(
       }
       OrchestratorMessage::TerminateWorker {
         issue_id,
-        cleanup_workspace: _,
+        cleanup_worktree: _,
       } => {
         if let Some(handle) = worker_handles.remove(&issue_id) {
           handle.abort();

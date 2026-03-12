@@ -1,12 +1,12 @@
-//! Workspace path resolution and safety (SPEC §9.1, §9.5).
+//! Git worktree path resolution and safety (SPEC §9.1, §9.5).
 
 use std::path::{Path, PathBuf};
 
-use symphony_domain::sanitize_workspace_key;
+use symphony_domain::sanitize_worktree_key;
 
-/// Per-issue workspace path: `root.join(sanitize_workspace_key(identifier))`.
-pub fn workspace_path(root: &Path, identifier: &str) -> PathBuf {
-  root.join(sanitize_workspace_key(identifier))
+/// Per-issue git worktree path: `root.join(sanitize_worktree_key(identifier))`.
+pub fn worktree_path(root: &Path, identifier: &str) -> PathBuf {
+  root.join(sanitize_worktree_key(identifier))
 }
 
 /// Require that `path` is under `root` (path component semantics). Used for safety (SPEC §9.5).
@@ -19,16 +19,16 @@ mod tests {
   use super::*;
 
   #[test]
-  fn workspace_path_joins_sanitized_key() {
-    let root = Path::new("/tmp/workspaces");
-    let p = workspace_path(root, "owner/repo#42");
-    assert_eq!(p, PathBuf::from("/tmp/workspaces/owner_repo_42"));
+  fn worktree_path_joins_sanitized_key() {
+    let root = Path::new("/tmp/worktrees");
+    let p = worktree_path(root, "owner/repo#42");
+    assert_eq!(p, PathBuf::from("/tmp/worktrees/owner_repo_42"));
   }
 
   #[test]
-  fn workspace_path_empty_identifier() {
+  fn worktree_path_empty_identifier() {
     let root = Path::new("/root");
-    let p = workspace_path(root, "");
+    let p = worktree_path(root, "");
     assert_eq!(p, PathBuf::from("/root"));
   }
 

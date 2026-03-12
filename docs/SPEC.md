@@ -7,14 +7,14 @@ Purpose: Define a service that orchestrates coding agents to get project work do
 ## 1. Problem Statement
 
 Symphony is a long-running automation service that continuously reads work from GitHub Issues,
-creates an isolated workspace for each issue, and runs a coding agent session for that issue inside
-the workspace.
+creates an isolated git worktree for each issue, and runs a coding agent session for that issue inside
+the git worktree.
 
 The service solves four operational problems:
 
 - It turns issue execution into a repeatable daemon workflow instead of manual scripts.
-- It isolates agent execution in per-issue workspaces so agent commands run only inside per-issue
-  workspace directories.
+- It isolates agent execution in per-issue git worktrees so agent commands run only inside per-issue
+  git worktree directories.
 - It keeps the workflow policy in-repo (`WORKFLOW.md`) so teams version the agent prompt and runtime
   settings with their code.
 - It provides enough observability to operate and debug multiple concurrent agent runs.
@@ -38,7 +38,7 @@ Important boundary:
 
 - Poll the issue tracker on a fixed cadence and dispatch work with bounded concurrency.
 - Maintain a single authoritative orchestrator state for dispatch, retries, and reconciliation.
-- Create deterministic per-issue workspaces and preserve them across runs.
+- Create deterministic per-issue git worktrees and preserve them across runs.
 - Stop active runs when issue state changes make them ineligible.
 - Recover from transient failures with exponential backoff.
 - Load runtime behavior from a repository-owned `WORKFLOW.md` contract.
@@ -82,14 +82,14 @@ Important boundary:
    - Decides which issues to dispatch, retry, stop, or release.
    - Tracks session metrics and retry queue state.
 
-5. `Workspace Manager`
-   - Maps issue identifiers to workspace paths.
-   - Ensures per-issue workspace directories exist.
-   - Runs workspace lifecycle hooks.
-   - Cleans workspaces for terminal issues.
+5. `Worktree Manager`
+   - Maps issue identifiers to git worktree paths.
+   - Ensures per-issue git worktree directories exist.
+   - Runs git worktree lifecycle hooks.
+   - Cleans git worktrees for terminal issues.
 
 6. `Agent Runner`
-   - Creates workspace.
+   - Creates git worktree.
    - Builds prompt from issue + workflow template.
    - Launches the coding agent app-server client.
    - Streams agent updates back to the orchestrator.
@@ -116,8 +116,8 @@ Symphony is easiest to port when kept in these layers:
 3. `Coordination Layer` (orchestrator)
    - Polling loop, issue eligibility, concurrency, retries, reconciliation.
 
-4. `Execution Layer` (workspace + agent subprocess)
-   - Filesystem lifecycle, workspace preparation, coding-agent protocol.
+4. `Execution Layer` (git worktree + agent subprocess)
+   - Filesystem lifecycle, git worktree preparation, coding-agent protocol.
 
 5. `Integration Layer` (GitHub adapter)
    - API calls and normalization for GitHub Issues data.
@@ -128,8 +128,8 @@ Symphony is easiest to port when kept in these layers:
 ### 3.3 External Dependencies
 
 - GitHub Issues API (REST; see Section 11).
-- Local filesystem for workspaces and logs.
-- Optional workspace population tooling (for example Git CLI, if used).
+- Local filesystem for git worktrees and logs.
+- Optional git worktree population tooling (for example Git CLI, if used).
 - Coding-agent executable that supports JSON-RPC-like app-server mode over stdio.
 - Host environment authentication for the issue tracker and coding agent.
 
@@ -182,21 +182,21 @@ Typed runtime values derived from `WorkflowDefinition.config` plus environment r
 Examples:
 
 - poll interval
-- workspace root
+- git worktree root
 - active and terminal issue states
 - concurrency limits
 - coding-agent executable/args/timeouts
-- workspace hooks
+- git worktree hooks
 
-#### 4.1.4 Workspace
+#### 4.1.4 Worktree
 
-Filesystem workspace assigned to one issue identifier.
+Filesystem git worktree assigned to one issue identifier.
 
 Fields (logical):
 
-- `path` (workspace path; current runtime typically uses absolute paths, but relative roots are
+- `path` (worktree path; current runtime typically uses absolute paths, but relative roots are
   possible if configured without path separators)
-- `workspace_key` (sanitized issue identifier)
+- `worktree_key` (sanitized issue identifier)
 - `created_now` (boolean, used to gate `after_create` hook)
 
 #### 4.1.5 Run Attempt
@@ -208,7 +208,7 @@ Fields (logical):
 - `issue_id`
 - `issue_identifier`
 - `attempt` (integer or null, `null` for first run, `>=1` for retries/continuation)
-- `workspace_path`
+- `worktree_path`
 - `started_at`
 - `status`
 - `error` (optional)
@@ -268,10 +268,10 @@ Fields:
 - `Issue ID`
   - Use for tracker lookups and internal map keys.
 - `Issue Identifier`
-  - Use for human-readable logs and workspace naming.
-- `Workspace Key`
+  - Use for human-readable logs and git worktree naming.
+- `Worktree Key`
   - Derive from `issue.identifier` by replacing any character not in `[A-Za-z0-9._-]` with `_`.
-  - Use the sanitized value for the workspace directory name.
+  - Use the sanitized value for the git worktree directory name.
 - `Normalized Issue State`
   - Compare states after `lowercase`.
 - `Session ID`
@@ -320,7 +320,7 @@ Top-level keys:
 
 - `tracker`
 - `polling`
-- `workspace`
+- `worktree`
 - `hooks`
 - `agent`
 - `runner`
@@ -360,12 +360,12 @@ Fields:
   - Default: `30000`
   - Changes should be re-applied at runtime and affect future tick scheduling without restart.
 
-#### 5.3.3 `workspace` (object)
+#### 5.3.3 `worktree` (object)
 
 Fields:
 
 - `root` (path string or `$VAR`)
-  - Default: `<system-temp>/symphony_workspaces`
+  - Default: `<system-temp>/symphony_worktrees`
   - `~` and strings containing path separators are expanded.
   - Bare strings without path separators are preserved as-is (relative roots are allowed but
     discouraged).
@@ -375,22 +375,22 @@ Fields:
 Fields:
 
 - `after_create` (multiline shell script string, optional)
-  - Runs only when a workspace directory is newly created.
-  - Failure aborts workspace creation.
+  - Runs only when a git worktree directory is newly created.
+  - Failure aborts git worktree creation.
 - `before_run` (multiline shell script string, optional)
-  - Runs before each agent attempt after workspace preparation and before launching the coding
+  - Runs before each agent attempt after git worktree preparation and before launching the coding
     agent.
   - Failure aborts the current attempt.
 - `after_run` (multiline shell script string, optional)
-  - Runs after each agent attempt (success, failure, timeout, or cancellation) once the workspace
+  - Runs after each agent attempt (success, failure, timeout, or cancellation) once the git worktree
     exists.
   - Failure is logged but ignored.
 - `before_remove` (multiline shell script string, optional)
-  - Runs before workspace deletion if the directory exists.
+  - Runs before git worktree deletion if the directory exists.
   - Failure is logged but ignored; cleanup still proceeds.
 - `timeout_ms` (integer, optional)
   - Default: `60000`
-  - Applies to all workspace hooks.
+  - Applies to all git worktree hooks.
   - Non-positive values should be treated as invalid and fall back to the default.
   - Changes should be re-applied at runtime for future hook executions.
 
@@ -412,13 +412,13 @@ Fields:
 #### 5.3.6 `runner` (object)
 
 Configures the coding agent process (any AI provider with a CLI: e.g. Codex, Cursor, Claude, OpenCode).
-The runtime launches the configured command in the workspace directory; the process must speak a
+The runtime launches the configured command in the git worktree directory; the process must speak a
 line-delimited JSON protocol over stdio (see Section 10). Provider-specific options (e.g. approval
 policy, sandbox mode) are implementation-defined pass-through values for the chosen runner.
 
 - `command` (string shell command)
   - Required. The CLI command to run (e.g. `codex app-server`, `cursor`, `claude`, `opencode`).
-  - The runtime launches this command via `bash -lc <command>` in the workspace directory.
+  - The runtime launches this command via `bash -lc <command>` in the git worktree directory.
   - The launched process must speak a compatible app-server protocol over stdio (or be adapted to it).
 - `turn_timeout_ms` (integer)
   - Default: `3600000` (1 hour). Total turn stream timeout.
@@ -497,7 +497,7 @@ Dynamic reload is required:
 - The software should watch `WORKFLOW.md` for changes.
 - On change, it should re-read and re-apply workflow config and prompt template without restart.
 - The software should attempt to adjust live behavior to the new config (for example polling
-  cadence, concurrency limits, active/terminal states, runner settings, workspace paths/hooks, and
+  cadence, concurrency limits, active/terminal states, runner settings, git worktree paths/hooks, and
   prompt content for future runs).
 - Reloaded config applies to future dispatch, retry scheduling, reconciliation decisions, hook
   execution, and runner/agent launches.
@@ -544,7 +544,7 @@ This section is intentionally redundant so a coding agent can implement the conf
 - `tracker.active_states`: list of strings, default `["open"]`
 - `tracker.terminal_states`: list of strings, default `["closed"]`
 - `polling.interval_ms`: integer, default `30000`
-- `workspace.root`: path, default `<system-temp>/symphony_workspaces`
+- `worktree.root`: path, default `<system-temp>/symphony_worktrees`
 - `hooks.after_create`: shell script or null
 - `hooks.before_run`: shell script or null
 - `hooks.after_run`: shell script or null
@@ -595,7 +595,7 @@ Important nuance:
 - The worker may continue through multiple back-to-back coding-agent turns before it exits.
 - After each normal turn completion, the worker re-checks the tracker issue state.
 - If the issue is still in an active state, the worker should start another turn on the same live
-  coding-agent thread in the same workspace, up to `agent.max_turns`.
+  coding-agent thread in the same git worktree, up to `agent.max_turns`.
 - The first turn should use the full rendered task prompt.
 - Continuation turns should send only continuation guidance to the existing thread, not resend the
   original task prompt that is already present in thread history.
@@ -607,7 +607,7 @@ Important nuance:
 
 A run attempt transitions through these phases:
 
-1. `PreparingWorkspace`
+1. `PreparingWorktree`
 2. `BuildingPrompt`
 3. `LaunchingAgentProcess`
 4. `InitializingSession`
@@ -658,7 +658,7 @@ Distinct terminal reasons are important because retry logic and logs differ.
 - `claimed` and `running` checks are required before launching any worker.
 - Reconciliation runs before dispatch on every tick.
 - Restart recovery is tracker-driven and filesystem-driven (no durable orchestrator DB required).
-- Startup terminal cleanup removes stale workspaces for issues already in terminal states.
+- Startup terminal cleanup removes stale git worktrees for issues already in terminal states.
 
 ## 8. Polling, Scheduling, and Reconciliation
 
@@ -738,7 +738,7 @@ Retry handling behavior:
 
 Note:
 
-- Terminal-state workspace cleanup is handled by startup cleanup and active-run reconciliation
+- Terminal-state git worktree cleanup is handled by startup cleanup and active-run reconciliation
   (including terminal transitions for currently running issues).
 - Retry handling mainly operates on active candidates and releases claims when the issue is absent,
   rather than performing terminal cleanup itself.
@@ -759,48 +759,48 @@ Part B: Tracker state refresh
 
 - Fetch current issue states for all running issue IDs.
 - For each running issue:
-  - If tracker state is terminal: terminate worker and clean workspace.
+  - If tracker state is terminal: terminate worker and clean git worktree.
   - If tracker state is still active: update the in-memory issue snapshot.
-  - If tracker state is neither active nor terminal: terminate worker without workspace cleanup.
+  - If tracker state is neither active nor terminal: terminate worker without git worktree cleanup.
 - If state refresh fails, keep workers running and try again on the next tick.
 
-### 8.6 Startup Terminal Workspace Cleanup
+### 8.6 Startup terminal git worktree cleanup
 
 When the service starts:
 
 1. Query tracker for issues in terminal states.
-2. For each returned issue identifier, remove the corresponding workspace directory.
+2. For each returned issue identifier, remove the corresponding git worktree directory.
 3. If the terminal-issues fetch fails, log a warning and continue startup.
 
-This prevents stale terminal workspaces from accumulating after restarts.
+This prevents stale terminal git worktrees from accumulating after restarts.
 
-## 9. Workspace Management and Safety
+## 9. Git worktree management and safety
 
-### 9.1 Workspace Layout
+### 9.1 Git worktree layout
 
-Workspace root:
+Git worktree root:
 
-- `workspace.root` (normalized path; the current config layer expands path-like values and preserves
+- `worktree.root` (normalized path; the current config layer expands path-like values and preserves
   bare relative names)
 
-Per-issue workspace path:
+Per-issue git worktree path:
 
-- `<workspace.root>/<sanitized_issue_identifier>`
+- `<worktree.root>/<sanitized_issue_identifier>`
 
-Workspace persistence:
+Git worktree persistence:
 
-- Workspaces are reused across runs for the same issue.
-- Successful runs do not auto-delete workspaces.
+- Git worktrees are reused across runs for the same issue.
+- Successful runs do not auto-delete git worktrees.
 
-### 9.2 Workspace Creation and Reuse
+### 9.2 Git worktree creation and reuse
 
 Input: `issue.identifier`
 
 Algorithm summary:
 
-1. Sanitize identifier to `workspace_key`.
-2. Compute workspace path under workspace root.
-3. Ensure the workspace path exists as a directory.
+1. Sanitize identifier to `worktree_key`.
+2. Compute git worktree path under worktree root.
+3. Ensure the git worktree path exists as a directory.
 4. Mark `created_now=true` only if the directory was created during this call; otherwise
    `created_now=false`.
 5. If `created_now=true`, run `after_create` hook if configured.
@@ -808,25 +808,25 @@ Algorithm summary:
 Notes:
 
 - This section does not assume any specific repository/VCS workflow.
-- Workspace preparation beyond directory creation (for example dependency bootstrap, checkout/sync,
+- Git worktree preparation beyond directory creation (for example dependency bootstrap, checkout/sync,
   code generation) is implementation-defined and is typically handled via hooks.
 
-### 9.3 Optional Workspace Population (Implementation-Defined)
+### 9.3 Optional git worktree population (implementation-defined)
 
 The spec does not require any built-in VCS or repository bootstrap behavior.
 
-Implementations may populate or synchronize the workspace using implementation-defined logic and/or
+Implementations may populate or synchronize the git worktree using implementation-defined logic and/or
 hooks (for example `after_create` and/or `before_run`).
 
 Failure handling:
 
-- Workspace population/synchronization failures return an error for the current attempt.
-- If failure happens while creating a brand-new workspace, implementations may remove the partially
+- Git worktree population/synchronization failures return an error for the current attempt.
+- If failure happens while creating a brand-new git worktree, implementations may remove the partially
   prepared directory.
-- Reused workspaces should not be destructively reset on population failure unless that policy is
+- Reused git worktrees should not be destructively reset on population failure unless that policy is
   explicitly chosen and documented.
 
-### 9.4 Workspace Hooks
+### 9.4 Git worktree hooks
 
 Supported hooks:
 
@@ -837,7 +837,7 @@ Supported hooks:
 
 Execution contract:
 
-- Execute in a local shell context appropriate to the host OS, with the workspace directory as
+- Execute in a local shell context appropriate to the host OS, with the git worktree directory as
   `cwd`.
 - On POSIX systems, `sh -lc <script>` (or a stricter equivalent such as `bash -lc <script>`) is a
   conforming default.
@@ -846,29 +846,29 @@ Execution contract:
 
 Failure semantics:
 
-- `after_create` failure or timeout is fatal to workspace creation.
+- `after_create` failure or timeout is fatal to git worktree creation.
 - `before_run` failure or timeout is fatal to the current run attempt.
 - `after_run` failure or timeout is logged and ignored.
 - `before_remove` failure or timeout is logged and ignored.
 
-### 9.5 Safety Invariants
+### 9.5 Safety invariants
 
 This is the most important portability constraint.
 
-Invariant 1: Run the coding agent only in the per-issue workspace path.
+Invariant 1: Run the coding agent only in the per-issue git worktree path.
 
 - Before launching the coding-agent subprocess, validate:
-  - `cwd == workspace_path`
+  - `cwd == worktree_path`
 
-Invariant 2: Workspace path must stay inside workspace root.
+Invariant 2: Git worktree path must stay inside worktree root.
 
 - Normalize both paths to absolute.
-- Require `workspace_path` to have `workspace_root` as a prefix directory.
-- Reject any path outside the workspace root.
+- Require `worktree_path` to have `worktree_root` as a prefix directory.
+- Reject any path outside the worktree root.
 
-Invariant 3: Workspace key is sanitized.
+Invariant 3: Worktree key is sanitized.
 
-- Only `[A-Za-z0-9._-]` allowed in workspace directory names.
+- Only `[A-Za-z0-9._-]` allowed in git worktree directory names.
 - Replace all other characters with `_`.
 
 ## 10. Agent Runner Protocol (Coding Agent Integration)
@@ -894,7 +894,7 @@ Subprocess launch parameters:
 
 - Command: `runner.command` (e.g. `codex app-server`, `cursor`, `claude`, `opencode`)
 - Invocation: `bash -lc <runner.command>`
-- Working directory: workspace path
+- Working directory: git worktree path
 - Stdout/stderr: separate streams
 - Framing: line-delimited protocol messages on stdout (JSON-RPC-like JSON per line)
 
@@ -920,8 +920,8 @@ semantics):
 ```json
 {"id":1,"method":"initialize","params":{"clientInfo":{"name":"symphony","version":"1.0"},"capabilities":{}}}
 {"method":"initialized","params":{}}
-{"id":2,"method":"thread/start","params":{"approvalPolicy":"<implementation-defined>","sandbox":"<implementation-defined>","cwd":"/abs/workspace"}}
-{"id":3,"method":"turn/start","params":{"threadId":"<thread-id>","input":[{"type":"text","text":"<rendered prompt-or-continuation-guidance>"}],"cwd":"/abs/workspace","title":"owner/repo#42: Example","approvalPolicy":"<implementation-defined>","sandboxPolicy":{"type":"<implementation-defined>"}}}
+{"id":2,"method":"thread/start","params":{"approvalPolicy":"<implementation-defined>","sandbox":"<implementation-defined>","cwd":"/abs/worktree"}}
+{"id":3,"method":"turn/start","params":{"threadId":"<thread-id>","input":[{"type":"text","text":"<rendered prompt-or-continuation-guidance>"}],"cwd":"/abs/worktree","title":"owner/repo#42: Example","approvalPolicy":"<implementation-defined>","sandboxPolicy":{"type":"<implementation-defined>"}}}
 ```
 
 1. `initialize` request
@@ -936,7 +936,7 @@ semantics):
    - Params include:
      - `approvalPolicy` = implementation-defined session approval policy value
      - `sandbox` = implementation-defined session sandbox value
-     - `cwd` = absolute workspace path
+     - `cwd` = absolute git worktree path
    - If optional client-side tools are implemented, include their advertised tool specs using the
      protocol mechanism supported by the targeted agent implementation.
 4. `turn/start` request
@@ -1073,7 +1073,7 @@ Timeouts:
 Error mapping (recommended normalized categories):
 
 - `runner_not_found`
-- `invalid_workspace_cwd`
+- `invalid_worktree_cwd`
 - `response_timeout`
 - `turn_timeout`
 - `port_exit`
@@ -1084,11 +1084,11 @@ Error mapping (recommended normalized categories):
 
 ### 10.7 Agent Runner Contract
 
-The `Agent Runner` wraps workspace + prompt + app-server client.
+The `Agent Runner` wraps git worktree + prompt + app-server client.
 
 Behavior:
 
-1. Create/reuse workspace for issue.
+1. Create/reuse git worktree for issue.
 2. Build prompt from workflow template.
 3. Start app-server session.
 4. Forward app-server events to orchestrator.
@@ -1096,7 +1096,7 @@ Behavior:
 
 Note:
 
-- Workspaces are intentionally preserved after successful runs.
+- Git worktrees are intentionally preserved after successful runs.
 
 ## 11. Issue Tracker Integration Contract (GitHub Issues)
 
@@ -1403,8 +1403,8 @@ Minimum endpoints:
       "issue_identifier": "MT-649",
       "issue_id": "abc123",
       "status": "running",
-      "workspace": {
-        "path": "/tmp/symphony_workspaces/MT-649"
+      "worktree": {
+        "path": "/tmp/symphony_worktrees/MT-649"
       },
       "attempts": {
         "restart_count": 1,
@@ -1484,10 +1484,10 @@ API design notes:
    - Unsupported tracker kind or missing tracker credentials/project slug
    - Missing coding-agent executable
 
-2. `Workspace Failures`
-   - Workspace directory creation failure
-   - Workspace population/synchronization failure (implementation-defined; may come from hooks)
-   - Invalid workspace path configuration
+2. `Git worktree failures`
+   - Git worktree directory creation failure
+   - Git worktree population/synchronization failure (implementation-defined; may come from hooks)
+   - Invalid git worktree path configuration
    - Hook timeout/failure
 
 3. `Agent Session Failures`
@@ -1539,7 +1539,7 @@ After restart:
 - No retry timers are restored from prior process memory.
 - No running sessions are assumed recoverable.
 - Service recovers by:
-  - startup terminal workspace cleanup
+  - startup terminal git worktree cleanup
   - fresh polling of active issues
   - re-dispatching eligible work
 
@@ -1550,7 +1550,7 @@ Operators can control behavior by:
 - Editing `WORKFLOW.md` (prompt and most runtime settings).
 - `WORKFLOW.md` changes should be detected and re-applied automatically without restart.
 - Changing issue states in the tracker:
-  - terminal state -> running session is stopped and workspace cleaned when reconciled
+  - terminal state -> running session is stopped and git worktree cleaned when reconciled
   - non-active state -> running session is stopped without cleanup
 - Restarting the service for process recovery or deployment (not as the normal path for applying
   workflow config changes).
@@ -1567,22 +1567,22 @@ Operational safety requirements:
   restrictive environments, or both.
 - Implementations should state clearly whether they rely on auto-approved actions, operator
   approvals, stricter sandboxing, or some combination of those controls.
-- Workspace isolation and path validation are important baseline controls, but they are not a
+- Git worktree isolation and path validation are important baseline controls, but they are not a
   substitute for whatever approval and sandbox policy an implementation chooses.
 
 ### 15.2 Filesystem Safety Requirements
 
 Mandatory:
 
-- Workspace path must remain under configured workspace root.
-- Coding-agent cwd must be the per-issue workspace path for the current run.
-- Workspace directory names must use sanitized identifiers.
+- Git worktree path must remain under configured worktree root.
+- Coding-agent cwd must be the per-issue git worktree path for the current run.
+- Git worktree directory names must use sanitized identifiers.
 
 Recommended additional hardening for ports:
 
 - Run under a dedicated OS user.
-- Restrict workspace root permissions.
-- Mount workspace root on a dedicated volume if possible.
+- Restrict worktree root permissions.
+- Mount worktree root on a dedicated volume if possible.
 
 ### 15.3 Secret Handling
 
@@ -1592,12 +1592,12 @@ Recommended additional hardening for ports:
 
 ### 15.4 Hook Script Safety
 
-Workspace hooks are arbitrary shell scripts from `WORKFLOW.md`.
+Git worktree hooks are arbitrary shell scripts from `WORKFLOW.md`.
 
 Implications:
 
 - Hooks are fully trusted configuration.
-- Hooks run inside the workspace directory.
+- Hooks run inside the git worktree directory.
 - Hook output should be truncated in logs.
 - Hook timeouts are required to avoid hanging the orchestrator.
 
@@ -1655,7 +1655,7 @@ function start_service():
     log_validation_error(validation)
     fail_startup(validation)
 
-  startup_terminal_workspace_cleanup()
+  startup_terminal_worktree_cleanup()
   schedule_tick(delay_ms=0)
 
   event_loop(state)
@@ -1710,11 +1710,11 @@ function reconcile_running_issues(state):
 
   for issue in refreshed:
     if issue.state in terminal_states:
-      state = terminate_running_issue(state, issue.id, cleanup_workspace=true)
+      state = terminate_running_issue(state, issue.id, cleanup_worktree=true)
     else if issue.state in active_states:
       state.running[issue.id].issue = issue
     else:
-      state = terminate_running_issue(state, issue.id, cleanup_workspace=false)
+      state = terminate_running_issue(state, issue.id, cleanup_worktree=false)
 
   return state
 ```
@@ -1758,20 +1758,20 @@ function dispatch_issue(issue, state, attempt):
   return state
 ```
 
-### 16.5 Worker Attempt (Workspace + Prompt + Agent)
+### 16.5 Worker attempt (git worktree + prompt + agent)
 
 ```text
 function run_agent_attempt(issue, attempt, orchestrator_channel):
-  workspace = workspace_manager.create_for_issue(issue.identifier)
-  if workspace failed:
-    fail_worker("workspace error")
+  worktree = worktree_manager.create_for_issue(issue.identifier)
+  if worktree failed:
+    fail_worker("worktree error")
 
-  if run_hook("before_run", workspace.path) failed:
+  if run_hook("before_run", worktree.path) failed:
     fail_worker("before_run hook error")
 
-  session = app_server.start_session(workspace=workspace.path)
+  session = app_server.start_session(worktree=worktree.path)
   if session failed:
-    run_hook_best_effort("after_run", workspace.path)
+    run_hook_best_effort("after_run", worktree.path)
     fail_worker("agent session startup error")
 
   max_turns = config.agent.max_turns
@@ -1781,7 +1781,7 @@ function run_agent_attempt(issue, attempt, orchestrator_channel):
     prompt = build_turn_prompt(workflow_template, issue, attempt, turn_number, max_turns)
     if prompt failed:
       app_server.stop_session(session)
-      run_hook_best_effort("after_run", workspace.path)
+      run_hook_best_effort("after_run", worktree.path)
       fail_worker("prompt error")
 
     turn_result = app_server.run_turn(
@@ -1793,13 +1793,13 @@ function run_agent_attempt(issue, attempt, orchestrator_channel):
 
     if turn_result failed:
       app_server.stop_session(session)
-      run_hook_best_effort("after_run", workspace.path)
+      run_hook_best_effort("after_run", worktree.path)
       fail_worker("agent turn error")
 
     refreshed_issue = tracker.fetch_issue_states_by_ids([issue.id])
     if refreshed_issue failed:
       app_server.stop_session(session)
-      run_hook_best_effort("after_run", workspace.path)
+      run_hook_best_effort("after_run", worktree.path)
       fail_worker("issue state refresh error")
 
     issue = refreshed_issue[0] or issue
@@ -1813,7 +1813,7 @@ function run_agent_attempt(issue, attempt, orchestrator_channel):
     turn_number = turn_number + 1
 
   app_server.stop_session(session)
-  run_hook_best_effort("after_run", workspace.path)
+  run_hook_best_effort("after_run", worktree.path)
 
   exit_normal()
 ```
@@ -1905,21 +1905,21 @@ Unless otherwise noted, Sections 17.1 through 17.7 are `Core Conformance`. Bulle
 - Prompt template renders `issue` and `attempt`
 - Prompt rendering fails on unknown variables (strict mode)
 
-### 17.2 Workspace Manager and Safety
+### 17.2 Worktree manager and safety
 
-- Deterministic workspace path per issue identifier
-- Missing workspace directory is created
-- Existing workspace directory is reused
-- Existing non-directory path at workspace location is handled safely (replace or fail per
+- Deterministic git worktree path per issue identifier
+- Missing git worktree directory is created
+- Existing git worktree directory is reused
+- Existing non-directory path at git worktree location is handled safely (replace or fail per
   implementation policy)
-- Optional workspace population/synchronization errors are surfaced
+- Optional git worktree population/synchronization errors are surfaced
 - Temporary artifacts (`tmp`, `.elixir_ls`) are removed during prep
-- `after_create` hook runs only on new workspace creation
+- `after_create` hook runs only on new git worktree creation
 - `before_run` hook runs before each attempt and failure/timeouts abort the current attempt
 - `after_run` hook runs after each attempt and failure/timeouts are logged and ignored
 - `before_remove` hook runs on cleanup and failures/timeouts are ignored
-- Workspace path sanitization and root containment invariants are enforced before agent launch
-- Agent launch uses the per-issue workspace path as cwd and rejects out-of-root paths
+- Git worktree path sanitization and root containment invariants are enforced before agent launch
+- Agent launch uses the per-issue git worktree path as cwd and rejects out-of-root paths
 
 ### 17.3 Issue Tracker Client (GitHub)
 
@@ -1938,8 +1938,8 @@ Unless otherwise noted, Sections 17.1 through 17.7 are `Core Conformance`. Bulle
 - Issue in primary active state (e.g. `open`) with non-terminal blockers is not eligible
 - Issue in primary active state with terminal blockers (or no blockers) is eligible
 - Active-state issue refresh updates running entry state
-- Non-active state stops running agent without workspace cleanup
-- Terminal state stops running agent and cleans workspace
+- Non-active state stops running agent without git worktree cleanup
+- Terminal state stops running agent and cleans git worktree
 - Reconciliation with no running issues is a no-op
 - Normal worker exit schedules a short continuation retry (attempt 1)
 - Abnormal worker exit increments retries with 10s-based exponential backoff
@@ -1953,7 +1953,7 @@ Unless otherwise noted, Sections 17.1 through 17.7 are `Core Conformance`. Bulle
 
 ### 17.5 Coding-Agent App-Server Client
 
-- Launch command uses workspace cwd and invokes `bash -lc <runner.command>`
+- Launch command uses git worktree cwd and invokes `bash -lc <runner.command>`
 - Startup handshake sends `initialize`, `initialized`, `thread/start`, `turn/start`
 - `initialize` includes client identity/capabilities payload required by the targeted agent
   protocol
@@ -2006,7 +2006,7 @@ network access, or external service permissions are unavailable.
 
 - A real tracker smoke test can be run with valid credentials supplied by `GITHUB_TOKEN` or a
   documented local bootstrap mechanism (for example `~/.github_token`).
-- Real integration tests should use isolated test identifiers/workspaces and clean up tracker
+- Real integration tests should use isolated test identifiers/git worktrees and clean up tracker
   artifacts when practical.
 - A skipped real-integration test should be reported as skipped, not silently treated as passed.
 - If a real-integration profile is explicitly enabled in CI or release validation, failures should
@@ -2029,8 +2029,8 @@ Use the same validation profiles as Section 17:
 - Dynamic `WORKFLOW.md` watch/reload/re-apply for config and prompt
 - Polling orchestrator with single-authority mutable state
 - Issue tracker client with candidate fetch + state refresh + terminal fetch
-- Workspace manager with sanitized per-issue workspaces
-- Workspace lifecycle hooks (`after_create`, `before_run`, `after_run`, `before_remove`)
+- Worktree manager with sanitized per-issue git worktrees
+- Git worktree lifecycle hooks (`after_create`, `before_run`, `after_run`, `before_remove`)
 - Hook timeout config (`hooks.timeout_ms`, default `60000`)
 - Coding-agent subprocess client with JSON line protocol (Section 10)
 - Runner command config (`runner.command`, required; e.g. `codex app-server`, `cursor`, `claude`, `opencode`)
@@ -2038,7 +2038,7 @@ Use the same validation profiles as Section 17:
 - Exponential retry queue with continuation retries after normal exit
 - Configurable retry backoff cap (`agent.max_retry_backoff_ms`, default 5m)
 - Reconciliation that stops runs on terminal/non-active tracker states
-- Workspace cleanup for terminal issues (startup sweep + active transition)
+- Git worktree cleanup for terminal issues (startup sweep + active transition)
 - Structured logs with `issue_id`, `issue_identifier`, and `session_id`
 - Operator-visible observability (structured logs; optional snapshot/status surface)
 

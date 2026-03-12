@@ -29,7 +29,7 @@ pub enum RunnerProtocol {
 pub async fn run_agent_with_protocol(
   protocol: RunnerProtocol,
   command: &str,
-  workspace_path: &std::path::Path,
+  worktree_path: &std::path::Path,
   prompt: &str,
   issue_identifier: &str,
   issue_title: &str,
@@ -41,7 +41,7 @@ pub async fn run_agent_with_protocol(
     RunnerProtocol::Codex => {
       run_agent_codex(
         command,
-        workspace_path,
+        worktree_path,
         prompt,
         issue_identifier,
         issue_title,
@@ -54,7 +54,7 @@ pub async fn run_agent_with_protocol(
     RunnerProtocol::Acp => {
       acp::run_agent_acp(
         command,
-        workspace_path,
+        worktree_path,
         prompt,
         issue_identifier,
         issue_title,
@@ -67,7 +67,7 @@ pub async fn run_agent_with_protocol(
     RunnerProtocol::Cli => {
       stream_cli::run_agent_cli(
         command,
-        workspace_path,
+        worktree_path,
         prompt,
         issue_identifier,
         issue_title,

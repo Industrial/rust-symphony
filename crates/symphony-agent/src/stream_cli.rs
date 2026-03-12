@@ -79,7 +79,7 @@ mod tests {
 #[allow(clippy::too_many_arguments)]
 pub async fn run_agent_cli(
   command: &str,
-  workspace_path: &Path,
+  worktree_path: &Path,
   prompt: &str,
   issue_identifier: &str,
   _issue_title: &str,
@@ -97,7 +97,7 @@ pub async fn run_agent_cli(
   let mut child = Command::new(program)
     .args(args)
     .arg(prompt)
-    .current_dir(workspace_path)
+    .current_dir(worktree_path)
     .stdin(std::process::Stdio::null())
     .stdout(std::process::Stdio::piped())
     .stderr(std::process::Stdio::piped())

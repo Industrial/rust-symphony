@@ -90,28 +90,28 @@ pub struct WorkflowDefinition {
 
 Typed runtime values live in the config layer (see [05-configuration.md](05-configuration.md)). Domain types that reference them:
 
-- **Poll interval**, **workspace root**, **active/terminal states**, **concurrency limits**, **codex command/timeouts**, **hooks**: all come from the parsed workflow config + env resolution.
+- **Poll interval**, **worktree root**, **active/terminal states**, **concurrency limits**, **codex command/timeouts**, **hooks**: all come from the parsed workflow config + env resolution.
 - Use **validator** in the config layer to enforce “required after resolution” (e.g. `tracker.repo`, `tracker.api_key`, `codex.command`).
 
 ---
 
-### 4.1.4 Workspace (SPEC §4.1.4)
+### 4.1.4 Worktree (SPEC §4.1.4)
 
-Logical workspace for one issue; path and key are derived by the workspace manager.
+Logical git worktree for one issue; path and key are derived by the worktree manager.
 
 ```rust
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Workspace {
+pub struct Worktree {
     pub path: PathBuf,
-    pub workspace_key: String,
+    pub worktree_key: String,
     pub created_now: bool,
 }
 ```
 
-- **workspace_key**: Sanitized issue identifier per SPEC §4.2: replace any char not in `[A-Za-z0-9._-]` with `_`. Implement as a free function and use it when creating `Workspace` and when computing paths.
+- **worktree_key**: Sanitized issue identifier per SPEC §4.2: replace any char not in `[A-Za-z0-9._-]` with `_`. Implement as a free function and use it when creating `Worktree` and when computing paths.
 
 ---
 
@@ -127,7 +127,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunAttemptStatus {
-    PreparingWorkspace,
+    PreparingWorktree,
     BuildingPrompt,
     LaunchingAgentProcess,
     InitializingSession,
@@ -145,7 +145,7 @@ pub struct RunAttempt {
     pub issue_id: String,
     pub issue_identifier: String,
     pub attempt: Option<u32>,
-    pub workspace_path: PathBuf,
+    pub worktree_path: PathBuf,
     pub started_at: DateTime<Utc>,
     pub status: RunAttemptStatus,
     pub error: Option<String>,
@@ -259,14 +259,14 @@ pub struct OrchestratorState {
 ### Issue ID and identifier
 
 - **id**: Stable tracker ID (e.g. GitHub `node_id` or numeric id as string). Use as map key and for API lookups.
-- **identifier**: Human-readable (e.g. `owner/repo#42`). Use in logs and workspace naming.
+- **identifier**: Human-readable (e.g. `owner/repo#42`). Use in logs and git worktree naming.
 
-### Workspace key
+### Worktree key
 
 Derive from `issue.identifier`: replace any character not in `[A-Za-z0-9._-]` with `_`.
 
 ```rust
-pub fn sanitize_workspace_key(identifier: &str) -> String {
+pub fn sanitize_worktree_key(identifier: &str) -> String {
     identifier
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' { c } else { '_' })

@@ -9,7 +9,7 @@ pub mod retry;
 pub mod run_attempt;
 pub mod session;
 pub mod workflow;
-pub mod workspace;
+pub mod worktree;
 
 pub use issue::{BlockerRef, Issue};
 pub use orchestrator::{AgentTotals, OrchestratorState, RunningEntry};
@@ -17,4 +17,4 @@ pub use retry::RetryEntry;
 pub use run_attempt::{RunAttempt, RunAttemptStatus};
 pub use session::LiveSession;
 pub use workflow::WorkflowDefinition;
-pub use workspace::{Workspace, sanitize_workspace_key};
+pub use worktree::{Worktree, sanitize_worktree_key};

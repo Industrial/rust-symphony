@@ -1,4 +1,4 @@
-//! Workspace directory creation, worktree creation, and hook execution (SPEC §9.2, §9.4).
+//! Git worktree directory creation (plain or git worktree), and hook execution (SPEC §9.2, §9.4).
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -6,12 +6,12 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
 
-use crate::path::workspace_path;
+use crate::path::worktree_path;
 
-/// Error from workspace ensure-dir, worktree, or hook execution.
+/// Error from git worktree ensure-dir, worktree creation, or hook execution.
 #[derive(Debug, thiserror::Error)]
-pub enum WorkspaceError {
-  #[error("failed to create workspace directory: {0}")]
+pub enum WorktreeError {
+  #[error("failed to create git worktree directory: {0}")]
   CreateDir(std::io::Error),
 
   #[error("hook execution failed: {0}")]
@@ -26,17 +26,18 @@ pub enum WorkspaceError {
   #[error("git worktree add failed: {0}")]
   GitWorktreeAdd(String),
 
-  #[error("workspace path exists but is not a git worktree: {0}")]
+  #[error("worktree path exists but is not a git worktree: {0}")]
   PathExistsNotWorktree(PathBuf),
 }
 
-/// Ensure the workspace directory exists. Creates it with `create_dir_all` if missing.
+/// Ensure the git worktree directory exists (plain directory). Creates it with `create_dir_all` if missing.
 /// Returns `(path, true)` if the dir was just created, `(path, false)` if it already existed.
-pub async fn ensure_workspace_dir(
+/// Use this when `main_repo_path` is not set; when set, use `ensure_worktree_dir` for a real git worktree.
+pub async fn ensure_worktree_plain_dir(
   root: &Path,
   identifier: &str,
-) -> Result<(PathBuf, bool), WorkspaceError> {
-  let path = workspace_path(root, identifier);
+) -> Result<(PathBuf, bool), WorktreeError> {
+  let path = worktree_path(root, identifier);
   let existed = tokio::fs::metadata(&path)
     .await
     .map(|m| m.is_dir())
@@ -44,7 +45,7 @@ pub async fn ensure_workspace_dir(
   if !existed {
     tokio::fs::create_dir_all(&path)
       .await
-      .map_err(WorkspaceError::CreateDir)?;
+      .map_err(WorktreeError::CreateDir)?;
     Ok((path, true))
   } else {
     Ok((path, false))
@@ -76,31 +77,31 @@ pub async fn ensure_worktree_dir(
   identifier: &str,
   main_repo_path: &Path,
   branch_name: &str,
-) -> Result<(PathBuf, bool), WorkspaceError> {
-  let path = workspace_path(root, identifier);
+) -> Result<(PathBuf, bool), WorktreeError> {
+  let path = worktree_path(root, identifier);
   if path.exists() {
     if is_git_worktree(&path) {
       return Ok((path, false));
     }
-    return Err(WorkspaceError::PathExistsNotWorktree(path));
+    return Err(WorktreeError::PathExistsNotWorktree(path));
   }
   if let Some(parent) = path.parent() {
     tokio::fs::create_dir_all(parent)
       .await
-      .map_err(WorkspaceError::CreateDir)?;
+      .map_err(WorktreeError::CreateDir)?;
   }
   let main_meta = tokio::fs::metadata(main_repo_path)
     .await
-    .map_err(|_| WorkspaceError::MainRepoNotFound(main_repo_path.to_path_buf()))?;
+    .map_err(|_| WorktreeError::MainRepoNotFound(main_repo_path.to_path_buf()))?;
   if !main_meta.is_dir() {
-    return Err(WorkspaceError::MainRepoNotFound(
+    return Err(WorktreeError::MainRepoNotFound(
       main_repo_path.to_path_buf(),
     ));
   }
   let git_dir = main_repo_path.join(".git");
   let git_exists = tokio::fs::metadata(&git_dir).await.is_ok();
   if !git_exists {
-    return Err(WorkspaceError::MainRepoNotFound(
+    return Err(WorktreeError::MainRepoNotFound(
       main_repo_path.to_path_buf(),
     ));
   }
@@ -110,22 +111,22 @@ pub async fn ensure_worktree_dir(
     .current_dir(main_repo_path)
     .output()
     .await
-    .map_err(|e| WorkspaceError::GitWorktreeAdd(e.to_string()))?;
+    .map_err(|e| WorktreeError::GitWorktreeAdd(e.to_string()))?;
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
-    return Err(WorkspaceError::GitWorktreeAdd(stderr.to_string()));
+    return Err(WorktreeError::GitWorktreeAdd(stderr.to_string()));
   }
   Ok((path, true))
 }
 
 /// Run a hook command with `sh -lc <script>` in the given `cwd`, with a timeout.
-/// On timeout the child process is killed and `WorkspaceError::HookTimeout` is returned.
-pub async fn run_hook(script: &str, cwd: &Path, timeout_ms: u64) -> Result<(), WorkspaceError> {
+/// On timeout the child process is killed and `WorktreeError::HookTimeout` is returned.
+pub async fn run_hook(script: &str, cwd: &Path, timeout_ms: u64) -> Result<(), WorktreeError> {
   let mut child = Command::new("sh")
     .args(["-lc", script])
     .current_dir(cwd)
     .spawn()
-    .map_err(|e| WorkspaceError::Hook(e.to_string()))?;
+    .map_err(|e| WorktreeError::Hook(e.to_string()))?;
 
   let dur = Duration::from_millis(timeout_ms);
   match timeout(dur, child.wait()).await {
@@ -133,16 +134,16 @@ pub async fn run_hook(script: &str, cwd: &Path, timeout_ms: u64) -> Result<(), W
       if status.success() {
         Ok(())
       } else {
-        Err(WorkspaceError::Hook(format!(
+        Err(WorktreeError::Hook(format!(
           "exit code {:?}",
           status.code()
         )))
       }
     }
-    Ok(Err(e)) => Err(WorkspaceError::Hook(e.to_string())),
+    Ok(Err(e)) => Err(WorktreeError::Hook(e.to_string())),
     Err(_) => {
       let _ = child.kill().await;
-      Err(WorkspaceError::HookTimeout(timeout_ms))
+      Err(WorktreeError::HookTimeout(timeout_ms))
     }
   }
 }
@@ -152,14 +153,18 @@ mod tests {
   use super::*;
 
   #[tokio::test]
-  async fn ensure_workspace_dir_creates_new() {
+  async fn ensure_worktree_plain_dir_creates_new() {
     let root = std::env::temp_dir().join("symphony_ws_ensure_test");
     let _ = tokio::fs::remove_dir_all(&root).await;
-    let (path, created) = ensure_workspace_dir(&root, "owner/repo#1").await.unwrap();
+    let (path, created) = ensure_worktree_plain_dir(&root, "owner/repo#1")
+      .await
+      .unwrap();
     assert!(created);
     assert!(path.is_dir());
     assert!(path.ends_with("owner_repo_1"));
-    let (_, created2) = ensure_workspace_dir(&root, "owner/repo#1").await.unwrap();
+    let (_, created2) = ensure_worktree_plain_dir(&root, "owner/repo#1")
+      .await
+      .unwrap();
     assert!(!created2);
     let _ = tokio::fs::remove_dir_all(&root).await;
   }
@@ -175,14 +180,14 @@ mod tests {
   async fn run_hook_exit_nonzero() {
     let cwd = std::env::temp_dir();
     let r = run_hook("exit 1", cwd.as_path(), 5000).await;
-    assert!(matches!(r, Err(WorkspaceError::Hook(_))));
+    assert!(matches!(r, Err(WorktreeError::Hook(_))));
   }
 
   #[tokio::test]
   async fn run_hook_timeout() {
     let cwd = std::env::temp_dir();
     let r = run_hook("sleep 10", cwd.as_path(), 100).await;
-    assert!(matches!(r, Err(WorkspaceError::HookTimeout(100))));
+    assert!(matches!(r, Err(WorktreeError::HookTimeout(100))));
   }
 
   #[tokio::test]
@@ -251,7 +256,7 @@ mod tests {
     let _ = tokio::fs::remove_dir_all(&root).await;
     let bad_main = root.join("nonexistent");
     let r = ensure_worktree_dir(&root, "o/r#1", &bad_main, "symphony/issue-1").await;
-    assert!(matches!(r, Err(WorkspaceError::MainRepoNotFound(_))));
+    assert!(matches!(r, Err(WorktreeError::MainRepoNotFound(_))));
     let _ = tokio::fs::remove_dir_all(&root).await;
   }
 }

@@ -7,9 +7,9 @@ use serde::Deserialize;
 use crate::ConfigError;
 use crate::config::{
   AgentConfig, HooksConfig, PollingConfig, RunnerConfig, RunnerType, ServiceConfig, TrackerConfig,
-  WorkspaceConfig,
+  WorktreeConfig,
 };
-use crate::resolve::{resolve_var, resolve_workspace_root};
+use crate::resolve::{resolve_var, resolve_worktree_root};
 
 /// Raw tracker map from workflow front matter (before env resolution).
 #[derive(Debug, Deserialize)]
@@ -48,10 +48,10 @@ struct RawPolling {
   interval_ms: Option<u64>,
 }
 
-/// Raw workspace map (root supports $VAR and ~). main_repo_path: when set, use git worktrees.
+/// Raw worktree map (root supports $VAR and ~). main_repo_path: when set, create per-issue git worktrees.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
-struct RawWorkspace {
+struct RawWorktree {
   root: Option<String>,
   main_repo_path: Option<String>,
 }
@@ -84,13 +84,14 @@ struct RawConfig {
   tracker: Option<RawTracker>,
   runner: Option<RawRunner>,
   polling: Option<RawPolling>,
-  workspace: Option<RawWorkspace>,
+  #[serde(alias = "workspace")]
+  worktree: Option<RawWorktree>,
   hooks: Option<RawHooks>,
   agent: Option<RawAgent>,
 }
 
 /// Build ServiceConfig from workflow front matter (e.g. `WorkflowDefinition.config`).
-/// Applies env resolution to `tracker.api_key` and `workspace.root`, then validates.
+/// Applies env resolution to `tracker.api_key` and `worktree.root`, then validates.
 pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, ConfigError> {
   let raw: RawConfig =
     serde_json::from_value(value.clone()).map_err(|e| ConfigError::Deserialize(e.to_string()))?;
@@ -152,24 +153,24 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     })
     .unwrap_or_default();
 
-  let workspace_root = match raw
-    .workspace
+  let worktree_root = match raw
+    .worktree
     .as_ref()
     .and_then(|w| w.root.as_ref())
     .filter(|s| !s.trim().is_empty())
   {
-    Some(s) => resolve_workspace_root(s)?,
-    None => std::env::temp_dir().join("symphony_workspaces"),
+    Some(s) => resolve_worktree_root(s)?,
+    None => std::env::temp_dir().join("symphony_worktrees"),
   };
   let main_repo_path = raw
-    .workspace
+    .worktree
     .as_ref()
     .and_then(|w| w.main_repo_path.as_ref())
     .filter(|s| !s.trim().is_empty())
-    .map(|s| resolve_workspace_root(s))
+    .map(|s| resolve_worktree_root(s))
     .transpose()?;
-  let workspace_config = WorkspaceConfig {
-    root: workspace_root,
+  let worktree_config = WorktreeConfig {
+    root: worktree_root,
     main_repo_path,
   };
 
@@ -203,7 +204,7 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     tracker: tracker_config,
     runner: runner_config,
     polling: polling_config,
-    workspace: workspace_config,
+    worktree: worktree_config,
     hooks: hooks_config,
     agent: agent_config,
   };
@@ -302,28 +303,28 @@ mod tests {
   }
 
   #[test]
-  fn from_workflow_config_workspace_default() {
+  fn from_workflow_config_worktree_default() {
     let value = serde_json::json!({
         "tracker": { "repo": "r", "api_key": "k" },
         "runner": { "command": "c" }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert!(config.workspace.root.ends_with("symphony_workspaces"));
-    assert!(config.workspace.root.is_absolute());
+    assert!(config.worktree.root.ends_with("symphony_worktrees"));
+    assert!(config.worktree.root.is_absolute());
   }
 
   #[test]
-  fn from_workflow_config_workspace_root_resolved() {
+  fn from_workflow_config_worktree_root_resolved() {
     std::env::set_var("SYMPHONY_WS", "my_ws_dir");
     let value = serde_json::json!({
         "tracker": { "repo": "r", "api_key": "k" },
         "runner": { "command": "c" },
-        "workspace": { "root": "$SYMPHONY_WS" }
+        "worktree": { "root": "$SYMPHONY_WS" }
     });
     let config = from_workflow_config(&value).unwrap();
     std::env::remove_var("SYMPHONY_WS");
-    assert!(config.workspace.root.is_absolute());
-    assert!(config.workspace.root.ends_with("my_ws_dir"));
+    assert!(config.worktree.root.is_absolute());
+    assert!(config.worktree.root.ends_with("my_ws_dir"));
   }
 
   #[test]
@@ -526,23 +527,23 @@ mod tests {
   }
 
   #[test]
-  fn from_workflow_config_workspace_main_repo_path_omitted() {
+  fn from_workflow_config_worktree_main_repo_path_omitted() {
     let value = serde_json::json!({
         "tracker": { "repo": "r", "api_key": "k" },
         "runner": { "command": "c" }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert!(config.workspace.main_repo_path.is_none());
+    assert!(config.worktree.main_repo_path.is_none());
   }
 
   #[test]
-  fn from_workflow_config_workspace_main_repo_path_parsed() {
+  fn from_workflow_config_worktree_main_repo_path_parsed() {
     let value = serde_json::json!({
         "tracker": { "repo": "r", "api_key": "k" },
         "runner": { "command": "c" },
-        "workspace": { "root": ".", "main_repo_path": "." }
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert!(config.workspace.main_repo_path.is_some());
+    assert!(config.worktree.main_repo_path.is_some());
   }
 }

@@ -13,7 +13,7 @@ Checklist for **SPEC §18**. Use for conformance and release validation. Core = 
 - [ ] Dynamic WORKFLOW.md watch/reload for config and prompt
 - [ ] Polling orchestrator with single-authority mutable state ([06-orchestration.md](06-orchestration.md))
 - [ ] Issue tracker client: candidate fetch, state refresh, terminal fetch ([10-github-tracker.md](10-github-tracker.md))
-- [ ] Workspace manager: sanitized per-issue workspaces ([08-workspace-management.md](08-workspace-management.md))
+- [ ] Workspace manager: sanitized per-issue workspaces ([08-worktree-management.md](08-worktree-management.md))
 - [ ] Hooks: after_create, before_run, after_run, before_remove; timeout config (default 60000 ms)
 - [ ] Coding-agent subprocess client: JSON line protocol ([09-agent-runner.md](09-agent-runner.md))
 - [ ] Runner command config: `runner.command` required

@@ -1,12 +1,12 @@
 # RustSymphony
 
-A Rust implementation of the **Symphony** orchestrator: a long-running service that reads work from GitHub Issues, creates an isolated workspace per issue, and runs a coding agent session for that issue inside the workspace.
+A Rust implementation of the **Symphony** orchestrator: a long-running service that reads work from GitHub Issues, creates an isolated git worktree per issue, and runs a coding agent session for that issue inside the git worktree.
 
 ## What Symphony Does
 
 - **Polls** the issue tracker on a fixed cadence and dispatches work with bounded concurrency.
 - **Maintains** a single authoritative orchestrator state for dispatch, retries, and reconciliation.
-- **Creates** deterministic per-issue workspaces and preserves them across runs.
+- **Creates** deterministic per-issue git worktrees and preserves them across runs.
 - **Stops** active runs when issue state changes make them ineligible (reconciliation).
 - **Recovers** from transient failures with configurable exponential backoff.
 - **Loads** runtime behavior from a repository-owned `WORKFLOW.md` (YAML front matter + prompt body).
@@ -18,11 +18,11 @@ Symphony is a **scheduler/runner and tracker reader**. Ticket writes (state tran
 
 | Crate | Purpose |
 |-------|---------|
-| `symphony-domain` | Core domain types: Issue, WorkflowDefinition, Workspace, RunAttempt, Session, RetryEntry, OrchestratorState (SPEC §4). |
+| `symphony-domain` | Core domain types: Issue, WorkflowDefinition, Worktree, RunAttempt, Session, RetryEntry, OrchestratorState (SPEC §4). |
 | `symphony-workflow` | Workflow loader: path resolution, YAML front matter parsing, prompt body (SPEC §5). |
 | `symphony-config` | Typed config: defaults, `$VAR` resolution (shellexpand), dispatch validation (SPEC §6). |
 | `symphony-orchestration` | Orchestrator messages, claim state, scheduling (sort, retry delay), runtime snapshot (SPEC §7, §8, §12). |
-| `symphony-workspace` | Workspace path resolution and safety checks (SPEC §9). |
+| `symphony-workspace` | Git worktree path resolution and safety checks (SPEC §9). |
 | `symphony-agent` | Agent runner protocol: NDJSON-over-stdio message parsing (SPEC §10). |
 | `symphony-tracker` | GitHub issue tracker: normalization to domain Issue, error types (SPEC §11). |
 | `symphony-prompt` | Prompt construction: Liquid templating from Issue + attempt (SPEC §12). |
@@ -66,7 +66,7 @@ devenv shell -- cargo run -p symphony-runner -- --dry-run /path/to/WORKFLOW.md
 - **Specification:** [docs/SPEC.md](docs/SPEC.md) — language-agnostic Symphony service spec.
 - **Addendum 1:** [docs/SPEC_ADDENDUM_1.md](docs/SPEC_ADDENDUM_1.md) — label filtering, durable claim, PR-driven workflow.
 - **Addendum 2:** [docs/SPEC_ADDENDUM_2.md](docs/SPEC_ADDENDUM_2.md) — fix-PR: re-dispatch when checks fail or when someone mentions the bot (e.g. `@symphony`). Top-level **`fix_pr`** in workflow front matter (default: `false`) opts in; when `true`, the orchestrator applies fix-PR logic for issues with `pr_open_label`. When `false` or omitted, no check-status or mention polling occurs. This repo sets `fix_pr: true` in `WORKFLOW.md`.
-- **Rust implementation notes:** `docs/SPEC/` — problem statement, domain model, workflow, config, orchestration, polling, workspace, agent runner, tracker, prompt construction, logging, failure recovery, security, reference algorithms, testing, checklist.
+- **Rust implementation notes:** `docs/SPEC/` — problem statement, domain model, workflow, config, orchestration, polling, git worktree, agent runner, tracker, prompt construction, logging, failure recovery, security, reference algorithms, testing, checklist.
 
 ## Development
 
@@ -100,8 +100,8 @@ tracker:
   claim_label: "symphony-claimed"
   pr_open_label: "pr-open"
 
-# Command to run the coding agent in each workspace (required).
-# Change this to use a different agent; it is run with cwd = per-issue workspace.
+# Command to run the coding agent in each git worktree (required).
+# Change this to use a different agent; it is run with cwd = per-issue git worktree.
 # type: "codex" (default) | "acp" | "cli"
 #   codex = Codex-style protocol (thread/start, turn/start, turn/completed).
 #   acp   = Cursor ACP (agent acp). Command: "agent acp".
@@ -119,10 +119,10 @@ runner:
 polling:
   interval_ms: 60000
 
-# Root directory for per-issue workspaces. Supports $VAR and ~.
-# Default if omitted: system temp dir / symphony_workspaces.
-workspace:
-  root: "./.symphony_workspaces"
+# Root directory for per-issue git worktrees. Supports $VAR and ~.
+# Default if omitted: system temp dir / symphony_worktrees.
+worktree:
+  root: "./.symphony_worktrees"
 
 # Optional: agent concurrency and retry.
 agent:
@@ -170,13 +170,13 @@ You are working on a GitHub issue for the **RustSymphony** project (a Rust imple
 {% if attempt %}
 ## Attempt
 
-This is **attempt {{ attempt }}**. A previous run may have been interrupted or failed; continue from the current state of the workspace.
+This is **attempt {{ attempt }}**. A previous run may have been interrupted or failed; continue from the current state of the git worktree.
 {% endif %}
 
 ## Instructions
 
 1. **Claim the issue** (if the workflow uses a claim label): Add the claim label to this issue first (e.g. `gh issue edit … --add-label symphony-claimed`) so no other worker picks it up.
-2. Read the issue and the codebase in this workspace.
+2. Read the issue and the codebase in this git worktree.
 3. Implement or fix what the issue asks for. Use a single branch per issue (e.g. `symphony/issue-<number>`) if opening a PR.
 4. Run tests and fix any failures (`devenv shell -- moon run :test` as appropriate).
 5. Follow project conventions (see `.cursor/rules`, `docs/`, and existing code).

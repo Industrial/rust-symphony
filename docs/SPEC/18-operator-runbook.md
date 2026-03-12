@@ -73,7 +73,7 @@ See [13-failure-recovery.md](13-failure-recovery.md) for failure classes and rec
 
 ### Workspace and hooks
 
-- **Workspace root**: All issue workspaces live under `workspace.root`; paths are normalized and validated. Agent subprocess runs with `current_dir(workspace_path)` only ([08-workspace-management.md](08-workspace-management.md)).
+- **Workspace root**: All issue workspaces live under `workspace.root`; paths are normalized and validated. Agent subprocess runs with `current_dir(workspace_path)` only ([08-worktree-management.md](08-worktree-management.md)).
 - **Hooks**: Hooks are configured in `WORKFLOW.md` and run in the workspace dir with full shell; enforce timeout and truncate hook output in logs.
 
 See [14-security.md](14-security.md) for filesystem safety, hook safety, and hardening options.

@@ -17,7 +17,7 @@ use clap::Parser;
 #[command(long_about = None)]
 pub struct Cli {
   /// Run one poll cycle only: load config and workflow, fetch candidates, apply sort and
-  /// concurrency rules, log what would be dispatched, then exit. No workers, no workspaces, no tracker writes.
+  /// concurrency rules, log what would be dispatched, then exit. No workers, no git worktrees, no tracker writes.
   #[arg(long)]
   pub dry_run: bool,
 

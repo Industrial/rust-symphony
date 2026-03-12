@@ -17,7 +17,7 @@ Symphony is a long-running automation service that:
 | Problem | Implementation implication |
 |--------|----------------------------|
 | Repeatable daemon workflow | Single long-lived process; poll loop + bounded concurrency (see [07-polling-scheduling.md](07-polling-scheduling.md)). |
-| Per-issue workspace isolation | Workspace manager maps issue identifier → directory; agent is always spawned with that directory as `cwd` (see [08-workspace-management.md](08-workspace-management.md)). |
+| Per-issue workspace isolation | Workspace manager maps issue identifier → directory; agent is always spawned with that directory as `cwd` (see [08-worktree-management.md](08-worktree-management.md)). |
 | Versioned workflow policy | `WORKFLOW.md` in repo: YAML front matter + prompt body; loaded and watched at runtime (see [04-workflow-spec.md](04-workflow-spec.md), [05-configuration.md](05-configuration.md)). |
 | Observability for concurrent runs | Structured logging + optional status/dashboard; per-issue and per-session context in logs (see [12-logging-observability.md](12-logging-observability.md)). |
 
@@ -37,7 +37,7 @@ Symphony is a long-running automation service that:
 |------|-------------|
 | Poll on fixed cadence, bounded concurrency | Tokio interval + semaphore/slots; [07-polling-scheduling.md](07-polling-scheduling.md). |
 | Single authoritative orchestrator state | In-memory struct(s); one owner; [06-orchestration.md](06-orchestration.md), [07-polling-scheduling.md](07-polling-scheduling.md). |
-| Deterministic per-issue workspaces, preserved across runs | Workspace path = `f(workspace_root, sanitize(issue_identifier))`; [08-workspace-management.md](08-workspace-management.md). |
+| Deterministic per-issue workspaces, preserved across runs | Workspace path = `f(workspace_root, sanitize(issue_identifier))`; [08-worktree-management.md](08-worktree-management.md). |
 | Stop runs when issue state becomes ineligible | Reconciliation every tick; fetch current states for running issue IDs; [07-polling-scheduling.md](07-polling-scheduling.md), [10-github-tracker.md](10-github-tracker.md). |
 | Transient failure recovery with exponential backoff | Retry queue with backoff formula; [07-polling-scheduling.md](07-polling-scheduling.md), [13-failure-recovery.md](13-failure-recovery.md). |
 | Load behavior from `WORKFLOW.md` | Workflow loader + config layer; [04-workflow-spec.md](04-workflow-spec.md), [05-configuration.md](05-configuration.md). |

@@ -2,7 +2,7 @@
 name = "symphony-workspace"
 version.workspace = true
 edition.workspace = true
-description = "Workspace path resolution and safety (SPEC §9)"
+description = "Git worktree path resolution and safety (SPEC §9)"
 license.workspace = true
 
 [dependencies]

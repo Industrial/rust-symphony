@@ -19,7 +19,7 @@ validator = { version = "0.18", features = ["derive"] }
 dirs = "5"
 ```
 
-- **shellexpand**: Expands `$VAR_NAME` and `${VAR_NAME}` from the environment; use for config values that may contain `$VAR` (e.g. `tracker.api_key`, `workspace.root`). Also supports `~` for home directory when used with a context that provides it.
+- **shellexpand**: Expands `$VAR_NAME` and `${VAR_NAME}` from the environment; use for config values that may contain `$VAR` (e.g. `tracker.api_key`, `worktree.root`). Also supports `~` for home directory when used with a context that provides it.
 - **validator**: Validate typed config after resolution (required fields, non-empty strings, numeric ranges). Use `#[validate(...)]` and `Validate::validate()` before dispatch (see §6.3).
 - **dirs**: Optional; use `dirs::home_dir()` to resolve `~` in paths when not using shellexpand’s default (shellexpand can use `~` if given a home callback).
 
@@ -34,7 +34,7 @@ dirs = "5"
 
 **Path/command semantics** (SPEC):
 
-- Expand `~` (home) and `$VAR` in **path-like** config values (e.g. `workspace.root`).
+- Expand `~` (home) and `$VAR` in **path-like** config values (e.g. `worktree.root`).
 - Do not rewrite URIs or arbitrary shell command strings (e.g. `runner.command` may contain spaces; expand only if you explicitly define that it supports `$VAR`).
 
 ### Resolving `$VAR` with shellexpand
@@ -47,12 +47,12 @@ fn resolve_var(s: &str) -> String {
 }
 ```
 
-- Use `resolve_var` for values that are defined to support indirection (e.g. `tracker.api_key`, `workspace.root`). If the result is empty and the field is required (e.g. `api_key`), validation fails.
+- Use `resolve_var` for values that are defined to support indirection (e.g. `tracker.api_key`, `worktree.root`). If the result is empty and the field is required (e.g. `api_key`), validation fails.
 
 ### Path expansion
 
 - **Home (`~`)**: Use `shellexpand::tilde()` with a home dir from `dirs::home_dir()`, or a custom context that provides `HOME`.
-- **Path separators**: SPEC says paths with `~` or path separators are expanded; bare strings without separators can be preserved (e.g. relative roots). Normalize to absolute when storing `workspace.root` for safety (e.g. `std::fs::canonicalize` or prepend current dir for relative paths).
+- **Path separators**: SPEC says paths with `~` or path separators are expanded; bare strings without separators can be preserved (e.g. relative roots). Normalize to absolute when storing `worktree.root` for safety (e.g. `std::fs::canonicalize` or prepend current dir for relative paths).
 
 ---
 
@@ -132,7 +132,7 @@ Typed getters should expose (after resolution and defaults):
 | `tracker.active_states` | `Vec<String>` | `["open"]` |
 | `tracker.terminal_states` | `Vec<String>` | `["closed"]` |
 | `polling.interval_ms` | `u64` | `30000` |
-| `workspace.root` | `PathBuf` | system temp / `symphony_workspaces`; expand `~` and `$VAR` |
+| `worktree.root` | `PathBuf` | system temp / `symphony_workspaces`; expand `~` and `$VAR` |
 | `hooks.after_create` / `before_run` / `after_run` / `before_remove` | `Option<String>` | optional script |
 | `hooks.timeout_ms` | `u64` | `60000` |
 | `agent.max_concurrent_agents` | `u32` | `10` |
@@ -152,8 +152,8 @@ Typed getters should expose (after resolution and defaults):
 ## Implementation Notes
 
 1. **Deserialization**: From the workflow loader you get a map (`serde_json::Value` or similar). Deserialize into a flattened or nested config struct; use `serde(default)` and `Option` for optional fields so missing keys get defaults.
-2. **Env resolution**: After deserializing, walk string fields that support `$VAR` (or only those you list, e.g. `tracker.api_key`, `workspace.root`) and replace with `shellexpand` (or equivalent). Then validate.
-3. **Path expansion**: For `workspace.root`, after `$VAR` resolution expand `~` and convert to absolute path; store as `PathBuf`.
+2. **Env resolution**: After deserializing, walk string fields that support `$VAR` (or only those you list, e.g. `tracker.api_key`, `worktree.root`) and replace with `shellexpand` (or equivalent). Then validate.
+3. **Path expansion**: For `worktree.root`, after `$VAR` resolution expand `~` and convert to absolute path; store as `PathBuf`.
 4. **Validation**: Run `validate_dispatch()` at startup and on each poll tick before dispatch; on failure skip dispatch and emit an operator-visible error.
 
 ---

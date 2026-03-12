@@ -74,7 +74,7 @@ const MAX_LINE_LEN: usize = 10 * 1024 * 1024;
 #[allow(clippy::too_many_arguments)]
 pub async fn run_agent_codex(
   command: &str,
-  workspace_path: &Path,
+  worktree_path: &Path,
   prompt: &str,
   issue_identifier: &str,
   issue_title: &str,
@@ -83,7 +83,7 @@ pub async fn run_agent_codex(
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
   let start = std::time::Instant::now();
-  let cwd_abs = workspace_path
+  let cwd_abs = worktree_path
     .canonicalize()
     .map_err(|e| AgentRunnerError::Handshake(e.to_string()))?
     .to_string_lossy()
@@ -91,7 +91,7 @@ pub async fn run_agent_codex(
 
   let mut child = Command::new("sh")
     .args(["-lc", command])
-    .current_dir(workspace_path)
+    .current_dir(worktree_path)
     .stdin(std::process::Stdio::piped())
     .stdout(std::process::Stdio::piped())
     .stderr(std::process::Stdio::piped())

@@ -12,7 +12,7 @@ mod resolve;
 pub use build::from_workflow_config;
 pub use config::{
   AgentConfig, HooksConfig, PollingConfig, RunnerConfig, RunnerType, ServiceConfig, TrackerConfig,
-  WorkspaceConfig,
+  WorktreeConfig,
 };
 pub use error::{ConfigError, ConfigValidationError};
-pub use resolve::{resolve_var, resolve_workspace_root};
+pub use resolve::{resolve_var, resolve_worktree_root};

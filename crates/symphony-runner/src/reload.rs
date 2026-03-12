@@ -91,7 +91,7 @@ mod tests {
         stall_timeout_ms: None,
       },
       polling: symphony_config::PollingConfig::default(),
-      workspace: symphony_config::WorkspaceConfig {
+      worktree: symphony_config::WorktreeConfig {
         root: std::env::temp_dir().join("symphony_reload_test"),
         main_repo_path: None,
       },

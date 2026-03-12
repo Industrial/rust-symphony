@@ -49,7 +49,7 @@ pub enum OrchestratorMessage {
   /// Request to terminate a running worker (reconciliation or stall).
   TerminateWorker {
     issue_id: String,
-    cleanup_workspace: bool,
+    cleanup_worktree: bool,
   },
 }
 

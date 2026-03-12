@@ -7,14 +7,14 @@ use shellexpand::{env_with_context_no_errors, tilde};
 use crate::ConfigError;
 
 /// Expand `$VAR_NAME` and `${VAR_NAME}` from the environment.
-/// Use for values that support indirection (e.g. `tracker.api_key`, `workspace.root`).
+/// Use for values that support indirection (e.g. `tracker.api_key`, `worktree.root`).
 pub fn resolve_var(s: &str) -> String {
   env_with_context_no_errors(s, |key| std::env::var(key).ok()).into_owned()
 }
 
-/// Resolve workspace root: apply $VAR, expand `~`, then normalize to absolute path.
+/// Resolve git worktree root: apply $VAR, expand `~`, then normalize to absolute path.
 /// Relative paths are joined with `std::env::current_dir()`.
-pub fn resolve_workspace_root(s: &str) -> Result<PathBuf, ConfigError> {
+pub fn resolve_worktree_root(s: &str) -> Result<PathBuf, ConfigError> {
   let with_vars = resolve_var(s);
   let with_tilde = tilde(&with_vars).into_owned();
   let path = PathBuf::from(with_tilde.trim());
@@ -45,25 +45,25 @@ mod tests {
   }
 
   #[test]
-  fn resolve_workspace_root_relative() {
-    let root = resolve_workspace_root("symphony_workspaces").unwrap();
+  fn resolve_worktree_root_relative() {
+    let root = resolve_worktree_root("symphony_worktrees").unwrap();
     assert!(root.is_absolute());
-    assert!(root.ends_with("symphony_workspaces"));
+    assert!(root.ends_with("symphony_worktrees"));
   }
 
   #[test]
-  fn resolve_workspace_root_with_var() {
-    std::env::set_var("SYMPHONY_WS_ROOT", "my_workspaces");
-    let root = resolve_workspace_root("$SYMPHONY_WS_ROOT").unwrap();
+  fn resolve_worktree_root_with_var() {
+    std::env::set_var("SYMPHONY_WS_ROOT", "my_worktrees");
+    let root = resolve_worktree_root("$SYMPHONY_WS_ROOT").unwrap();
     std::env::remove_var("SYMPHONY_WS_ROOT");
     assert!(root.is_absolute());
-    assert!(root.ends_with("my_workspaces"));
+    assert!(root.ends_with("my_worktrees"));
   }
 
   #[test]
-  fn resolve_workspace_root_tilde_expands() {
+  fn resolve_worktree_root_tilde_expands() {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let root = resolve_workspace_root("~/symphony_ws").unwrap();
+    let root = resolve_worktree_root("~/symphony_ws").unwrap();
     assert!(root.is_absolute());
     assert_eq!(root.to_string_lossy(), format!("{}/symphony_ws", home));
   }

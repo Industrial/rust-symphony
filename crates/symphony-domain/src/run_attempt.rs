@@ -7,7 +7,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunAttemptStatus {
-  PreparingWorkspace,
+  PreparingWorktree,
   BuildingPrompt,
   LaunchingAgentProcess,
   InitializingSession,
@@ -26,7 +26,7 @@ pub struct RunAttempt {
   pub issue_identifier: String,
   pub attempt: Option<u32>,
   #[serde(with = "crate::path_serde")]
-  pub workspace_path: PathBuf,
+  pub worktree_path: PathBuf,
   pub started_at: DateTime<Utc>,
   pub status: RunAttemptStatus,
   pub error: Option<String>,
@@ -39,7 +39,7 @@ mod tests {
   #[test]
   fn run_attempt_status_serde_roundtrip() {
     let statuses = [
-      RunAttemptStatus::PreparingWorkspace,
+      RunAttemptStatus::PreparingWorktree,
       RunAttemptStatus::Succeeded,
       RunAttemptStatus::Failed,
       RunAttemptStatus::CanceledByReconciliation,
@@ -58,7 +58,7 @@ mod tests {
       issue_id: "id".into(),
       issue_identifier: "repo#1".into(),
       attempt: Some(1),
-      workspace_path: PathBuf::from("/tmp/ws"),
+      worktree_path: PathBuf::from("/tmp/ws"),
       started_at: started,
       status: RunAttemptStatus::StreamingTurn,
       error: None,

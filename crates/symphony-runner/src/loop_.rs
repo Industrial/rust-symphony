@@ -26,7 +26,7 @@ use symphony_tracker::{
   fetch_issue_states_by_ids, fetch_issues_with_label, issue_passes_label_filters,
   parse_issue_number, resolve_pr_for_issue,
 };
-use symphony_workspace::{ensure_workspace_dir, ensure_worktree_dir, run_hook};
+use symphony_workspace::{ensure_worktree_dir, ensure_worktree_plain_dir, run_hook};
 
 /// One poll cycle in dry-run: fetch candidates, sort, apply concurrency; log what would be dispatched; no workers or tracker writes.
 pub async fn dry_run_one_poll(
@@ -146,7 +146,7 @@ pub async fn run_orchestrator(
       }
       OrchestratorMessage::TerminateWorker {
         issue_id,
-        cleanup_workspace: _,
+        cleanup_worktree: _,
       } => {
         if let Some(handle) = worker_handles.remove(&issue_id) {
           handle.abort();
@@ -221,7 +221,7 @@ async fn reconcile_running(
         if is_terminal || !is_active {
           let _ = tx.send(OrchestratorMessage::TerminateWorker {
             issue_id: issue.id.clone(),
-            cleanup_workspace: true,
+            cleanup_worktree: true,
           });
           if let Some(h) = worker_handles.remove(&issue.id) {
             h.abort();
@@ -373,7 +373,7 @@ async fn process_due_retries(
 }
 
 /// Dispatch new candidates: fix-PR candidates (when fix_pr) then normal candidates; sort, dispatch up to concurrency. Returns candidate count.
-/// SPEC_ADDENDUM_2 B.8: Same poll tick as normal candidates; fix-PR only reads (checks, mentions). Orchestrator does not add/remove labels or post comments. Single worker per issue (fix-PR re-dispatch reuses same workspace/branch).
+/// SPEC_ADDENDUM_2 B.8: Same poll tick as normal candidates; fix-PR only reads (checks, mentions). Orchestrator does not add/remove labels or post comments. Single worker per issue (fix-PR re-dispatch reuses same git worktree/branch).
 async fn dispatch_new_candidates(
   state: &mut OrchestratorState,
   config: &ServiceConfig,
@@ -600,7 +600,7 @@ fn worktree_branch_name(identifier: &str) -> String {
   }
 }
 
-/// Run one worker to completion: ensure workspace (or worktree when configured), hooks, render prompt, run agent, send WorkerExit.
+/// Run one worker to completion: ensure git worktree (plain dir or git worktree when main_repo_path set), hooks, render prompt, run agent, send WorkerExit.
 async fn run_worker_to_completion(
   config: ServiceConfig,
   prompt_template: String,
@@ -610,10 +610,10 @@ async fn run_worker_to_completion(
   retry_attempt: u32,
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
 ) {
-  let (path, created) = match config.workspace.main_repo_path.as_ref() {
+  let (path, created) = match config.worktree.main_repo_path.as_ref() {
     Some(main_repo) => {
       let branch = worktree_branch_name(&identifier);
-      match ensure_worktree_dir(&config.workspace.root, &identifier, main_repo, &branch).await {
+      match ensure_worktree_dir(&config.worktree.root, &identifier, main_repo, &branch).await {
         Ok(p) => p,
         Err(e) => {
           warn!(%issue_id, %e, "ensure worktree failed");
@@ -622,10 +622,10 @@ async fn run_worker_to_completion(
         }
       }
     }
-    None => match ensure_workspace_dir(&config.workspace.root, &identifier).await {
+    None => match ensure_worktree_plain_dir(&config.worktree.root, &identifier).await {
       Ok(p) => p,
       Err(e) => {
-        warn!(%issue_id, %e, "ensure workspace failed");
+        warn!(%issue_id, %e, "ensure git worktree failed");
         release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
         return;
       }
@@ -717,7 +717,7 @@ async fn run_worker_to_completion(
   });
 }
 
-/// Spawn a worker: ensure workspace, run hooks, render prompt, launch agent; send AgentUpdate/WorkerExit.
+/// Spawn a worker: ensure git worktree, run hooks, render prompt, launch agent; send AgentUpdate/WorkerExit.
 async fn dispatch_worker(
   state: &mut OrchestratorState,
   issue: &Issue,
@@ -790,7 +790,7 @@ mod tests {
   use symphony_domain::RunningEntry;
 
   use super::{log_tick_summary, run_orchestrator, run_worker_to_completion};
-  use symphony_workspace::workspace_path;
+  use symphony_workspace::worktree_path;
 
   fn test_config() -> ServiceConfig {
     ServiceConfig {
@@ -817,7 +817,7 @@ mod tests {
         stall_timeout_ms: None,
       },
       polling: symphony_config::PollingConfig::default(),
-      workspace: symphony_config::WorkspaceConfig {
+      worktree: symphony_config::WorktreeConfig {
         root: std::env::temp_dir().join("symphony_ws"),
         main_repo_path: None,
       },
@@ -933,8 +933,8 @@ mod tests {
     assert!(out.status.success(), "git init failed");
 
     let mut config = test_config();
-    config.workspace.root = root.join("ws");
-    config.workspace.main_repo_path = Some(main_repo.clone());
+    config.worktree.root = root.join("ws");
+    config.worktree.main_repo_path = Some(main_repo.clone());
     config.runner.runner_type = RunnerType::Cli;
     config.runner.command =
       "sh -c 'pwd > agent_cwd.txt; echo \"{\\\"type\\\":\\\"result\\\",\\\"subtype\\\":\\\"success\\\"}\"'"
@@ -979,7 +979,7 @@ mod tests {
       _ => panic!("expected WorkerExit"),
     }
 
-    let expected_path = workspace_path(&config.workspace.root, identifier);
+    let expected_path = worktree_path(&config.worktree.root, identifier);
     let cwd_file = expected_path.join("agent_cwd.txt");
     let cwd_content = tokio::fs::read_to_string(&cwd_file).await.unwrap();
     let reported_cwd = cwd_content.trim();

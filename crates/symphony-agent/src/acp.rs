@@ -19,7 +19,7 @@ const MAX_LINE_LEN: usize = 10 * 1024 * 1024;
 /// Waits for session/prompt result (with stopReason); handles session/request_permission by allowing once.
 pub async fn run_agent_acp(
   command: &str,
-  workspace_path: &Path,
+  worktree_path: &Path,
   prompt: &str,
   issue_identifier: &str,
   _issue_title: &str,
@@ -28,7 +28,7 @@ pub async fn run_agent_acp(
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
   let start = std::time::Instant::now();
-  let cwd_abs = workspace_path
+  let cwd_abs = worktree_path
     .canonicalize()
     .map_err(|e| AgentRunnerError::Handshake(e.to_string()))?
     .to_string_lossy()
@@ -36,7 +36,7 @@ pub async fn run_agent_acp(
 
   let mut child = Command::new("sh")
     .args(["-lc", command])
-    .current_dir(workspace_path)
+    .current_dir(worktree_path)
     .stdin(std::process::Stdio::piped())
     .stdout(std::process::Stdio::piped())
     .stderr(std::process::Stdio::piped())

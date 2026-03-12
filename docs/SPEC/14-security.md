@@ -17,7 +17,7 @@ Document in the implementation:
 
 ## 15.2 Filesystem Safety (SPEC §15.2)
 
-**Mandatory** (already in [08-workspace-management.md](08-workspace-management.md)):
+**Mandatory** (already in [08-worktree-management.md](08-worktree-management.md)):
 
 - Workspace path is under `workspace.root`; validate with normalized absolute paths and `path.starts_with(root)`.
 - Agent subprocess is launched with `current_dir(workspace_path)` only.
@@ -37,7 +37,7 @@ Document in the implementation:
 ## 15.4 Hook Script Safety (SPEC §15.4)
 
 - Hooks are trusted configuration from WORKFLOW.md; they run in the workspace dir with full shell.
-- Truncate hook output in logs; enforce timeout ([08-workspace-management.md](08-workspace-management.md)).
+- Truncate hook output in logs; enforce timeout ([08-worktree-management.md](08-worktree-management.md)).
 
 ---
 
@@ -57,4 +57,4 @@ Document chosen measures and treat hardening as part of the core safety model.
 
 - [SPEC.md](SPEC.md) §15 — Security and Operational Safety  
 - [05-configuration.md](05-configuration.md) — Env resolution  
-- [08-workspace-management.md](08-workspace-management.md) — Path and cwd invariants
+- [08-worktree-management.md](08-worktree-management.md) — Path and cwd invariants

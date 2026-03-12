@@ -26,7 +26,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
 
-- **tokio::process::Command**: Launch `bash -lc <runner.command>` with `current_dir(workspace_path)`, `stdin(Stdio::piped())`, `stdout(Stdio::piped())`, `stderr(Stdio::piped())`.
+- **tokio::process::Command**: Launch `bash -lc <runner.command>` with `current_dir(worktree_path)`, `stdin(Stdio::piped())`, `stdout(Stdio::piped())`, `stderr(Stdio::piped())`.
 - **Line reading**: Use **tokio::io::BufReader** on `child.stdout.take().unwrap()`; read lines in a loop (e.g. `AsyncBufReadExt::read_line` or manual buffer until `\n`). Max line length ~10 MB (SPEC); reject or truncate if exceeded.
 - **JSON**: **serde_json::from_str::<Value>(line)** (or a minimal struct with `method`, `id`, `params`, `result`, `error`). Then match and extract; unknown methods/fields map to `AgentMessage::Other` or similar and are ignored or forwarded.
 
@@ -35,7 +35,7 @@ serde_json = "1"
 ## 10.1 Launch Contract (SPEC §10.1)
 
 - **Command**: `runner.command` (e.g. `codex app-server`, `cursor`, `claude`, `opencode`).
-- **Invocation**: `Command::new("bash").args(["-lc", &config.runner.command]).current_dir(workspace_path)`.
+- **Invocation**: `Command::new("bash").args(["-lc", &config.runner.command]).current_dir(worktree_path)`.
 - **Streams**: Pipe stdin/stdout/stderr; protocol is on **stdout** only; stderr log as diagnostics.
 
 ---
@@ -47,7 +47,7 @@ Send in order (each line one JSON object):
 1. `{"id":1,"method":"initialize","params":{"clientInfo":{"name":"symphony","version":"1.0"},"capabilities":{}}}`
 2. Wait for response line; parse `id: 1`, `result` or `error`; on error or timeout (`runner.read_timeout_ms`) fail startup.
 3. `{"method":"initialized","params":{}}` (notification; no response expected).
-4. `{"id":2,"method":"thread/start","params":{"approvalPolicy":...,"sandbox":...,"cwd":<abs_workspace>}}`
+4. `{"id":2,"method":"thread/start","params":{"approvalPolicy":...,"sandbox":...,"cwd":<abs_worktree>}}`
 5. Wait for response; from `result.thread.id` (or equivalent) take `thread_id`.
 6. `{"id":3,"method":"turn/start","params":{"threadId":<thread_id>,"input":[{"type":"text","text":<prompt>}],"cwd":...,"title":"<issue.identifier>: <issue.title>",...}}`
 7. Wait for response; from `result.turn.id` take `turn_id`; emit `session_id = format!("{}-{}", thread_id, turn_id)`.
@@ -170,5 +170,5 @@ Use this to confirm whether the agent is receiving our messages and what (if any
 
 - [SPEC.md](SPEC.md) §10 — Agent Runner Protocol  
 - [07-polling-scheduling.md](07-polling-scheduling.md) — Stall timeout  
-- [08-workspace-management.md](08-workspace-management.md) — Workspace path and cwd  
+- [08-worktree-management.md](08-worktree-management.md) — Workspace path and cwd  
 - [Cursor ACP](https://cursor.com/docs/cli/acp) — Cursor’s stdio protocol (different from Codex-style)

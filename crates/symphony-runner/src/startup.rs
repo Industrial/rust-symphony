@@ -1,12 +1,12 @@
-//! Startup cleanup: remove workspace dirs for issues already in terminal state.
+//! Startup cleanup: remove git worktree dirs for issues already in terminal state.
 
 use tracing::{info, warn};
 
 use symphony_config::ServiceConfig;
 use symphony_tracker::fetch_issues_by_states;
-use symphony_workspace::workspace_path;
+use symphony_workspace::worktree_path;
 
-/// Remove workspace directories for issues that are already in a terminal state (e.g. closed).
+/// Remove git worktree directories for issues that are already in a terminal state (e.g. closed).
 /// Called once at startup to clean up from previous runs.
 pub async fn run_startup_cleanup(config: &ServiceConfig) {
   let terminal = config.tracker.terminal_states_slice();
@@ -24,12 +24,12 @@ pub async fn run_startup_cleanup(config: &ServiceConfig) {
   {
     Ok(issues) => {
       for issue in issues {
-        let path = workspace_path(&config.workspace.root, &issue.identifier);
+        let path = worktree_path(&config.worktree.root, &issue.identifier);
         if path.exists() {
           if let Err(e) = tokio::fs::remove_dir_all(&path).await {
-            warn!(path = %path.display(), %e, "startup cleanup: failed to remove workspace");
+            warn!(path = %path.display(), %e, "startup cleanup: failed to remove git worktree");
           } else {
-            info!(identifier = %issue.identifier, "startup cleanup: removed terminal workspace");
+            info!(identifier = %issue.identifier, "startup cleanup: removed terminal git worktree");
           }
         }
       }
@@ -68,7 +68,7 @@ mod tests {
         stall_timeout_ms: None,
       },
       polling: symphony_config::PollingConfig::default(),
-      workspace: symphony_config::WorkspaceConfig {
+      worktree: symphony_config::WorktreeConfig {
         root: std::env::temp_dir().join("symphony_cleanup_test"),
         main_repo_path: None,
       },

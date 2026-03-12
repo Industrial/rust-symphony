@@ -16,8 +16,8 @@ tracker:
   pr_open_label: "pr-open"
   mention_handle: "symphony"
 
-# Command to run the coding agent in each workspace (required).
-# Change this to use a different agent; it is run with cwd = per-issue workspace.
+# Command to run the coding agent in each git worktree (required).
+# Change this to use a different agent; it is run with cwd = per-issue git worktree.
 # type: "codex" (default) | "acp" | "cli"
 #   codex = Codex-style protocol (thread/start, turn/start, turn/completed).
 #   acp   = Cursor ACP (agent acp). Command: "agent acp".
@@ -36,10 +36,10 @@ runner:
 polling:
   interval_ms: 60000
 
-# Root directory for per-issue workspaces. Supports $VAR and ~.
-# Default if omitted: system temp dir / symphony_workspaces.
-workspace:
-  root: "./.symphony_workspaces"
+# Root directory for per-issue git worktrees. Supports $VAR and ~.
+# Default if omitted: system temp dir / symphony_worktrees.
+worktree:
+  root: "./.symphony_worktrees"
 
 # Optional: agent concurrency and retry.
 agent:
@@ -87,13 +87,13 @@ You are working on a GitHub issue for the **RustSymphony** project (a Rust imple
 {% if attempt %}
 ## Attempt
 
-This is **attempt {{ attempt }}**. A previous run may have been interrupted or failed; continue from the current state of the workspace.
+This is **attempt {{ attempt }}**. A previous run may have been interrupted or failed; continue from the current state of the git worktree.
 {% endif %}
 
 ## Instructions
 
 1. **Claim the issue** (if the workflow uses a claim label): Add the claim label to this issue first (e.g. `gh issue edit … --add-label symphony-claimed`) so no other worker picks it up.
-2. Read the issue and the codebase in this workspace.
+2. Read the issue and the codebase in this git worktree.
 3. **Fix-PR runs (SPEC_ADDENDUM_2 B.7):** If this issue already has an open PR (e.g. you were re-dispatched because CI failed or someone requested changes): use the **current branch**, pull or rebase as needed, make changes to address the failure or review feedback, commit and push. Do **not** open a new PR. When done, you may post a short comment on the issue or PR (e.g. "Pushed fixes for CI.").
 4. **New work:** Otherwise, implement what the issue asks for. Use a single branch per issue (e.g. `symphony/issue-<number>`), created from the base branch (e.g. `main` or `{{ workflow.pr_base_branch | default: "main" }}`), if opening a PR.
 5. Run tests and fix any failures (`devenv shell -- moon run :test` as appropriate).

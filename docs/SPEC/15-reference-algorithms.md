@@ -13,7 +13,7 @@ Rust implementation notes for **SPEC §16**. The spec gives pseudocode; this doc
 - **start_workflow_watch**: File watcher (notify or poll) + reload callback that re-reads workflow and applies config ([04-workflow-spec.md](04-workflow-spec.md), [05-configuration.md](05-configuration.md)).
 - **state**: Build `OrchestratorState` with defaults from config ([03-domain-model.md](03-domain-model.md)).
 - **validate_dispatch_config**: Config layer validation; fail startup on error.
-- **startup_terminal_workspace_cleanup**: Tracker `fetch_issues_by_states(terminal_states)`; for each issue, workspace manager remove dir ([07-polling-scheduling.md](07-polling-scheduling.md), [08-workspace-management.md](08-workspace-management.md)).
+- **startup_terminal_workspace_cleanup**: Tracker `fetch_issues_by_states(terminal_states)`; for each issue, workspace manager remove dir ([07-polling-scheduling.md](07-polling-scheduling.md), [08-worktree-management.md](08-worktree-management.md)).
 - **schedule_tick(0)**: Start the poll loop (immediate first tick); then `interval.tick()` every `poll_interval_ms`.
 - **event_loop**: Orchestrator task that receives `OrchestratorMessage` and runs the tick and message handlers ([06-orchestration.md](06-orchestration.md)).
 
@@ -50,7 +50,7 @@ Rust implementation notes for **SPEC §16**. The spec gives pseudocode; this doc
 
 ## 16.5 Worker Attempt (SPEC §16.5)
 
-- **workspace_manager.create_for_issue**: [08-workspace-management.md](08-workspace-management.md).
+- **workspace_manager.create_for_issue**: [08-worktree-management.md](08-worktree-management.md).
 - **run_hook("before_run")**: Run hook in a task with timeout; on failure return error.
 - **app_server.start_session**: [09-agent-runner.md](09-agent-runner.md) handshake.
 - **build_turn_prompt**: [11-prompt-construction.md](11-prompt-construction.md).
@@ -71,4 +71,4 @@ Rust implementation notes for **SPEC §16**. The spec gives pseudocode; this doc
 ## References
 
 - [SPEC.md](SPEC.md) §16 — Reference Algorithms  
-- [06-orchestration.md](06-orchestration.md), [07-polling-scheduling.md](07-polling-scheduling.md), [08-workspace-management.md](08-workspace-management.md), [09-agent-runner.md](09-agent-runner.md)
+- [06-orchestration.md](06-orchestration.md), [07-polling-scheduling.md](07-polling-scheduling.md), [08-worktree-management.md](08-worktree-management.md), [09-agent-runner.md](09-agent-runner.md)
