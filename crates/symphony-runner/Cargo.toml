@@ -1,6 +1,6 @@
 [package]
 name = "symphony-runner"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Tokio orchestrator loop: single-owner task, channel, tick, workers (SPEC §6–7)"
 license = "CC-BY-SA-4.0"

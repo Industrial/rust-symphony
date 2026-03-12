@@ -25,7 +25,8 @@ runs:
         TARGETS: ${{ inputs.targets }}
       run: |
         set -euo pipefail
-        if [ "$EVENT_NAME" = "pull_request" ] && [ "$USE_AFFECTED" = "true" ]; then
+        # Use --affected only on PR when base/head are set (moon requires both for --affected)
+        if [ "$EVENT_NAME" = "pull_request" ] && [ "$USE_AFFECTED" = "true" ] && [ -n "${MOON_BASE:-}" ] && [ -n "${MOON_HEAD:-}" ]; then
           devenv shell -- moon run --affected $TARGETS
         else
           devenv shell -- moon run $TARGETS
