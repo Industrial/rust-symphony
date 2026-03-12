@@ -130,9 +130,12 @@ impl Default for PollingConfig {
 }
 
 /// Workspace config (SPEC §6.4). Root is resolved and absolute.
+/// When main_repo_path is set, per-issue workspaces are created as git worktrees (SPEC_ADDENDUM_1 A.3.1).
 #[derive(Debug, Clone)]
 pub struct WorkspaceConfig {
   pub root: PathBuf,
+  /// Path to the main git repo (worktree or clone). When set, ensure_worktree is used so each issue gets a worktree.
+  pub main_repo_path: Option<PathBuf>,
 }
 
 /// Hooks config (SPEC §6.4).
@@ -234,6 +237,7 @@ mod tests {
       polling: PollingConfig::default(),
       workspace: WorkspaceConfig {
         root: std::env::temp_dir().join("symphony_workspaces"),
+        main_repo_path: None,
       },
       hooks: HooksConfig::default(),
       agent: AgentConfig::default(),

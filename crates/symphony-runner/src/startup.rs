@@ -69,6 +69,7 @@ mod tests {
       polling: symphony_config::PollingConfig::default(),
       workspace: symphony_config::WorkspaceConfig {
         root: std::env::temp_dir().join("symphony_cleanup_test"),
+        main_repo_path: None,
       },
       hooks: symphony_config::HooksConfig::default(),
       agent: symphony_config::AgentConfig::default(),

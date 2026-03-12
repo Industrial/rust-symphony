@@ -47,11 +47,12 @@ struct RawPolling {
   interval_ms: Option<u64>,
 }
 
-/// Raw workspace map (root supports $VAR and ~).
+/// Raw workspace map (root supports $VAR and ~). main_repo_path: when set, use git worktrees.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct RawWorkspace {
   root: Option<String>,
+  main_repo_path: Option<String>,
 }
 
 /// Raw hooks map.
@@ -151,14 +152,23 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
 
   let workspace_root = match raw
     .workspace
-    .and_then(|w| w.root)
+    .as_ref()
+    .and_then(|w| w.root.as_ref())
     .filter(|s| !s.trim().is_empty())
   {
-    Some(s) => resolve_workspace_root(&s)?,
+    Some(s) => resolve_workspace_root(s)?,
     None => std::env::temp_dir().join("symphony_workspaces"),
   };
+  let main_repo_path = raw
+    .workspace
+    .as_ref()
+    .and_then(|w| w.main_repo_path.as_ref())
+    .filter(|s| !s.trim().is_empty())
+    .map(|s| resolve_workspace_root(s))
+    .transpose()?;
   let workspace_config = WorkspaceConfig {
     root: workspace_root,
+    main_repo_path,
   };
 
   let hooks_raw = raw.hooks.unwrap_or_default();
@@ -489,5 +499,25 @@ mod tests {
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(config.tracker.mention_handle.as_deref(), Some("symphony"));
+  }
+
+  fn from_workflow_config_workspace_main_repo_path_omitted() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert!(config.workspace.main_repo_path.is_none());
+  }
+
+  #[test]
+  fn from_workflow_config_workspace_main_repo_path_parsed() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "c" },
+        "workspace": { "root": ".", "main_repo_path": "." }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert!(config.workspace.main_repo_path.is_some());
   }
 }

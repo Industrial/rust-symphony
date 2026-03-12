@@ -25,7 +25,7 @@ use symphony_tracker::{
   fetch_has_qualifying_mention, fetch_issue_states_by_ids, fetch_issues_with_label,
   issue_passes_label_filters, parse_issue_number, resolve_pr_for_issue,
 };
-use symphony_workspace::{ensure_workspace_dir, run_hook};
+use symphony_workspace::{ensure_worktree_dir, ensure_workspace_dir, run_hook};
 
 /// One poll cycle in dry-run: fetch candidates, sort, apply concurrency; log what would be dispatched; no workers or tracker writes.
 pub async fn dry_run_one_poll(
@@ -593,7 +593,18 @@ async fn forward_agent_updates(
   }
 }
 
-/// Run one worker to completion: ensure workspace, hooks, render prompt, run agent, send WorkerExit.
+/// Branch name for the per-issue worktree (SPEC_ADDENDUM_1 A.3.1). Uses issue number when present.
+fn worktree_branch_name(identifier: &str) -> String {
+  match parse_issue_number(identifier) {
+    Some(n) => format!("symphony/issue-{}", n),
+    None => format!(
+      "symphony/issue-{}",
+      identifier.replace(['/', '#'], "_")
+    ),
+  }
+}
+
+/// Run one worker to completion: ensure workspace (or worktree when configured), hooks, render prompt, run agent, send WorkerExit.
 async fn run_worker_to_completion(
   config: ServiceConfig,
   prompt_template: String,
@@ -603,13 +614,43 @@ async fn run_worker_to_completion(
   retry_attempt: u32,
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
 ) {
-  let (path, created) = match ensure_workspace_dir(&config.workspace.root, &identifier).await {
-    Ok(p) => p,
-    Err(e) => {
-      warn!(%issue_id, %e, "ensure workspace failed");
-      release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
-      return;
+  let (path, created) = match config.workspace.main_repo_path.as_ref() {
+    Some(main_repo) => {
+      let branch = worktree_branch_name(&identifier);
+      match ensure_worktree_dir(
+        &config.workspace.root,
+        &identifier,
+        main_repo,
+        &branch,
+      )
+      .await
+      {
+        Ok(p) => p,
+        Err(e) => {
+          warn!(%issue_id, %e, "ensure worktree failed");
+          release_claim_and_send_exit(
+            &tx,
+            &issue_id,
+            WorkerExitReason::Failed(e.to_string()),
+            0.0,
+          );
+          return;
+        }
+      }
     }
+    None => match ensure_workspace_dir(&config.workspace.root, &identifier).await {
+      Ok(p) => p,
+      Err(e) => {
+        warn!(%issue_id, %e, "ensure workspace failed");
+        release_claim_and_send_exit(
+          &tx,
+          &issue_id,
+          WorkerExitReason::Failed(e.to_string()),
+          0.0,
+        );
+        return;
+      }
+    },
   };
 
   if created {
@@ -754,14 +795,15 @@ mod tests {
   use std::sync::Arc;
   use std::time::Instant;
 
-  use symphony_config::ServiceConfig;
-  use symphony_domain::OrchestratorState;
+  use symphony_config::{RunnerType, ServiceConfig};
+  use symphony_domain::{Issue, OrchestratorState};
   use symphony_orchestration::OrchestratorMessage;
   use tokio::sync::{RwLock, mpsc};
 
   use symphony_domain::RunningEntry;
 
-  use super::{log_tick_summary, run_orchestrator};
+  use super::{log_tick_summary, run_orchestrator, run_worker_to_completion};
+  use symphony_workspace::workspace_path;
 
   fn test_config() -> ServiceConfig {
     ServiceConfig {
@@ -789,6 +831,7 @@ mod tests {
       polling: symphony_config::PollingConfig::default(),
       workspace: symphony_config::WorkspaceConfig {
         root: std::env::temp_dir().join("symphony_ws"),
+        main_repo_path: None,
       },
       hooks: symphony_config::HooksConfig::default(),
       agent: symphony_config::AgentConfig::default(),
@@ -884,5 +927,80 @@ mod tests {
       },
     );
     log_tick_summary(&state, 10);
+  }
+
+  /// When main_repo_path is set, the orchestrator creates a worktree and the worker process is run with cwd = worktree path.
+  #[tokio::test]
+  async fn run_worker_to_completion_uses_worktree_and_agent_cwd_is_worktree_path() {
+    let root = std::env::temp_dir().join("symphony_runner_wt_test");
+    let _ = tokio::fs::remove_dir_all(&root).await;
+    let main_repo = root.join("main");
+    tokio::fs::create_dir_all(&main_repo).await.unwrap();
+    let out = tokio::process::Command::new("git")
+      .args(["init"])
+      .current_dir(&main_repo)
+      .output()
+      .await
+      .unwrap();
+    assert!(out.status.success(), "git init failed");
+
+    let mut config = test_config();
+    config.workspace.root = root.join("ws");
+    config.workspace.main_repo_path = Some(main_repo.clone());
+    config.runner.runner_type = RunnerType::Cli;
+    config.runner.command =
+      "sh -c 'pwd > agent_cwd.txt; echo \"{\\\"type\\\":\\\"result\\\",\\\"subtype\\\":\\\"success\\\"}\"'"
+        .to_string();
+
+    let identifier = "o/r#1";
+    let issue = Issue {
+      id: "1".into(),
+      identifier: identifier.into(),
+      title: "Test".into(),
+      description: None,
+      priority: None,
+      state: "open".into(),
+      branch_name: None,
+      url: None,
+      labels: vec![],
+      blocked_by: vec![],
+      created_at: None,
+      updated_at: None,
+    };
+
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    run_worker_to_completion(
+      config.clone(),
+      "prompt".to_string(),
+      "1".into(),
+      identifier.into(),
+      issue,
+      0,
+      tx,
+    )
+    .await;
+
+    let msg = rx.recv().await.expect("WorkerExit");
+    match &msg {
+      OrchestratorMessage::WorkerExit { reason, .. } => {
+        assert!(matches!(reason, symphony_orchestration::WorkerExitReason::Normal));
+      }
+      _ => panic!("expected WorkerExit"),
+    }
+
+    let expected_path = workspace_path(&config.workspace.root, identifier);
+    let cwd_file = expected_path.join("agent_cwd.txt");
+    let cwd_content = tokio::fs::read_to_string(&cwd_file).await.unwrap();
+    let reported_cwd = cwd_content.trim();
+    let expected_canonical = expected_path.canonicalize().unwrap();
+    let expected_str = expected_canonical.to_string_lossy();
+    assert!(
+      reported_cwd.ends_with("o_r_1") || reported_cwd == expected_str.as_ref(),
+      "agent cwd should be worktree path: reported={:?} expected_path={:?}",
+      reported_cwd,
+      expected_path
+    );
+
+    let _ = tokio::fs::remove_dir_all(&root).await;
   }
 }
