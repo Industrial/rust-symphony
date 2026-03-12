@@ -54,7 +54,7 @@ See https://shopify.github.io/liquid/ for syntax.
 
 **Claim label (Addendum 1):** Add the claim label `symphony-claimed` to this issue as your first step (e.g. `gh issue edit … --add-label symphony-claimed`). That prevents other workers from picking the same issue and survives restarts.
 
-**PR-driven handoff (Addendum 1):** You may work on a single branch per issue (e.g. `symphony/issue-<number>`), open a PR with "Fixes #N" in the body, post a comment on the issue with the PR link, then exit. Do **not** merge the PR—a human merges; closing the issue happens when the PR is merged. Optionally add the label `pr-open` to the issue when the PR is open.
+**PR-driven handoff (Addendum 1):** You MUST (1) push your branch, (2) open a PR with body containing "Fixes #N", (3) post a comment on this issue with the PR URL. Do not consider the task complete until all three are done. Use `gh pr create` and `gh issue comment <number> --body "PR: <url>"` if available. Do **not** merge the PR—a human merges; closing the issue happens when the PR is merged. Optionally add the label `pr-open` to the issue when the PR is open.
 
 ---
 
@@ -94,5 +94,13 @@ This is **attempt {{ attempt }}**. A previous run may have been interrupted or f
 4. Run tests and fix any failures (`devenv shell -- moon run :test` as appropriate).
 5. Follow project conventions (see `.cursor/rules`, `docs/`, and existing code).
 6. When done, either:
-   - **PR-driven:** Open a PR (body: "Fixes #N"), comment on the issue with the PR link, then exit. Do not merge; a human merges and the issue will close when the PR is merged. Optionally add the `pr_open_label` to the issue when the PR is open. **Or**
+   - **PR-driven:** You MUST complete all of: (1) push your branch, (2) open a PR with body "Fixes #N" (e.g. `gh pr create --body "Fixes #N"`), (3) post a comment on this issue with the PR link (e.g. `gh issue comment <issue-number> --body "PR: https://github.com/…"`). Do not exit until all three are done. Do not merge the PR—a human merges. Optionally add the `pr_open_label` to the issue when the PR is open. **Or**
    - **Direct close:** Summarize in a comment, then **close this issue** (e.g. `gh issue close` or GitHub UI) so the runner stops picking it up. If you cannot close issues, add a clear "ready to close" comment for a maintainer.
+
+## Before you're done (required for PR-driven flow)
+
+If you are using the PR-driven handoff, you must complete every item before exiting:
+
+- [ ] Branch pushed to origin
+- [ ] PR opened with body containing "Fixes #N" (replace N with the issue number from this ticket)
+- [ ] Comment on this issue with the PR link
