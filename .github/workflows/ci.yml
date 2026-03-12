@@ -41,4 +41,29 @@ jobs:
           name: coverage-report
           path: target/llvm-cov/html
           retention-days: 7
+      - name: Upload coverage to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/llvm-cov/html
       - uses: ./.github/actions/sccache-stats
+  # Deploys coverage HTML to GitHub Pages. Enable in repo: Settings → Pages → Source: GitHub Actions.
+  deploy-pages:
+    name: Deploy coverage to GitHub Pages
+    needs: ci
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment: github-pages
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Add report link to summary
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          echo "### Coverage report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**[View coverage report](https://${OWNER}.github.io/${REPO}/)**" >> $GITHUB_STEP_SUMMARY
