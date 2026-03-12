@@ -63,10 +63,4 @@ mod tests {
       Some(PathBuf::from("./WORKFLOW.md"))
     );
   }
-
-  /// Intentional break for Industrial/rust-symphony#24: test fix-PR re-dispatch flow. Remove when done.
-  #[test]
-  fn intentional_break_fix_pr_flow_test() {
-    assert!(false);
-  }
 }
