@@ -36,8 +36,11 @@ Symphony is a **scheduler/runner and tracker reader**. Ticket writes (state tran
 # Build
 devenv shell -- cargo build
 
-# Run all tests (Moon)
-devenv shell -- moon run :test
+# Run all tests (recommended: nextest, via Moon)
+devenv shell -- moon run :test-nextest
+
+# Run code coverage (llvm-cov; enforces 95% for symphony-agent and symphony-domain)
+devenv shell -- moon run :test-coverage
 
 # Run the orchestrator (optional workflow path; config via env)
 devenv shell -- cargo run -p symphony-runner -- /path/to/WORKFLOW.md
@@ -53,6 +56,8 @@ devenv shell -- cargo run -p symphony-runner -- /path/to/WORKFLOW.md
 - **Rust:** 2021 edition. Format with `cargo fmt`, lint with `cargo clippy`.
 - **CI / Cachix:** Nix-based CI (e.g. `setup-nix-devenv`) can use a [Cachix](https://www.cachix.org/) binary cache to speed up builds. The cache name is set in the workflow (e.g. `rust-symphony`). **Read-only:** If the cache is public, no secrets are required; CI only pulls from the cache. **Read + write:** To push new store paths to the cache, add a Cachix auth token to GitHub Secrets as `CACHIX_AUTH_TOKEN` and ensure the job that runs the Nix/Cachix steps passes it in `env`. The reusable action skips pushing on PRs from forks to avoid leaking write access.
 - **Tasks:** [Moon](https://moonrepo.dev/) is used for workspace tasks. Each crate has `check` and `test`; run e.g. `devenv shell -- moon run symphony-domain:test`.
+- **Tests:** Use [cargo-nextest](https://nexte.st/) for faster, parallel test runs: `devenv shell -- moon run :test-nextest` (CI uses this). Per-crate `cargo test` remains available via `moon run <crate>:test`.
+- **Coverage:** [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) runs tests with coverage and enforces 95% thresholds for `symphony-agent` and `symphony-domain`: `devenv shell -- moon run :test-coverage`. Thresholds and package list are defined in `bin/test-coverage`.
 - **Environment:** Use [devenv](https://devenv.sh/) 2.x and `devenv shell --` for all commands (see `.cursor/rules/shell.mdc`). Install with `nix profile install github:cachix/devenv#default`. On first run after config changes, use `Ctrl+Alt+R` in the shell to reload (2.0 native reloading).
 - **Quality:** Unit tests are required for all code (see [docs/16-testing.md](docs/16-testing.md)); implementation is not complete without them.
 
