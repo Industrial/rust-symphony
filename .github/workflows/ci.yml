@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup-nix-devenv
         with:
-          cachix-cache-name: "rust-symphony"
+          allow-cache-push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
       - uses: ./.github/actions/setup-sccache
       - uses: ./.github/actions/setup-mold
       - uses: ./.github/actions/setup-moon
