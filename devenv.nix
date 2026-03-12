@@ -124,9 +124,8 @@ in {
     # AI
     inputs.nixpkgs-unstable.legacyPackages.${stdenv.hostPlatform.system}.beads
 
-    # E2E browser automation (fantoccini + chromedriver)
-    chromedriver
-    chromium
+    # Binary cache (for cachix.pull/push; CLI available for auth and debugging)
+    cachix
 
     # Rust tools
     clippy
