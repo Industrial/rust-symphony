@@ -373,6 +373,7 @@ async fn process_due_retries(
 }
 
 /// Dispatch new candidates: fix-PR candidates (when fix_pr) then normal candidates; sort, dispatch up to concurrency. Returns candidate count.
+/// SPEC_ADDENDUM_2 B.8: Same poll tick as normal candidates; fix-PR only reads (checks, mentions). Orchestrator does not add/remove labels or post comments. Single worker per issue (fix-PR re-dispatch reuses same workspace/branch).
 async fn dispatch_new_candidates(
   state: &mut OrchestratorState,
   config: &ServiceConfig,
@@ -401,6 +402,7 @@ async fn dispatch_new_candidates(
       .await
       {
         Ok(fix_pr_issues) => {
+          // B.8: Issue in running is not re-dispatched as fix-PR candidate (at most one worker per issue).
           let fix_pr_candidates: Vec<_> = fix_pr_issues
             .into_iter()
             .filter(|issue| !state.running.contains_key(&issue.id))
