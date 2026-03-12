@@ -25,9 +25,10 @@ runs:
         TARGETS: ${{ inputs.targets }}
       run: |
         set -euo pipefail
-        # Use --affected only on PR when base/head are set (moon requires both for --affected)
+        # Only use --affected on pull_request; on push (e.g. main) always run full pipeline.
         if [ "$EVENT_NAME" = "pull_request" ] && [ "$USE_AFFECTED" = "true" ] && [ -n "${MOON_BASE:-}" ] && [ -n "${MOON_HEAD:-}" ]; then
           devenv shell -- moon run --affected $TARGETS
         else
+          unset MOON_BASE MOON_HEAD
           devenv shell -- moon run $TARGETS
         fi
