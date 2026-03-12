@@ -1,13 +1,24 @@
-# Install Nix, enable magic cache, and install devenv for dev shell.
+# Install Nix, enable magic cache, optionally configure Cachix, and install devenv for dev shell.
 name: "Setup Nix devenv"
 description: "Setup Nix and devenv"
-inputs: {}
+inputs:
+  cachix-cache-name:
+    description: "Cachix cache name (e.g. rust-symphony). If empty, Cachix step is skipped."
+    required: false
+    default: ""
 outputs: {}
 runs:
   using: "composite"
   steps:
     - uses: DeterminateSystems/nix-installer-action@main
     - uses: DeterminateSystems/magic-nix-cache-action@main
+    - name: Setup Cachix
+      if: inputs.cachix-cache-name != ''
+      uses: cachix/cachix-action@v26
+      with:
+        name: ${{ inputs.cachix-cache-name }}
+        authToken: ${{ env.CACHIX_AUTH_TOKEN }}
+        skipPush: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
     - name: Install devenv 2.x
       shell: bash
       run: nix profile install github:cachix/devenv#default

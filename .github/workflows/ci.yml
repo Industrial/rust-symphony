@@ -13,11 +13,15 @@ jobs:
   ci:
     name: CI (checks → integration → e2e)
     runs-on: ubuntu-latest
+    env:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 1 }}
       - uses: ./.github/actions/setup-nix-devenv
+        with:
+          cachix-cache-name: "rust-symphony"
       - uses: ./.github/actions/setup-sccache
       - uses: ./.github/actions/setup-mold
       - uses: ./.github/actions/setup-moon
