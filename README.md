@@ -64,7 +64,9 @@ devenv shell -- cargo run -p symphony-runner -- --dry-run /path/to/WORKFLOW.md
 ## Documentation
 
 - **Specification:** [docs/SPEC.md](docs/SPEC.md) — language-agnostic Symphony service spec.
-- **Rust implementation notes:** `docs/01-problem-and-goals.md` through `docs/17-implementation-checklist.md` — problem statement, domain model, workflow, config, orchestration, polling, workspace, agent runner, tracker, prompt construction, logging, failure recovery, security, reference algorithms, testing, checklist.
+- **Addendum 1:** [docs/SPEC_ADDENDUM_1.md](docs/SPEC_ADDENDUM_1.md) — label filtering, durable claim, PR-driven workflow.
+- **Addendum 2:** [docs/SPEC_ADDENDUM_2.md](docs/SPEC_ADDENDUM_2.md) — fix-PR: re-dispatch when checks fail or when someone mentions the bot (e.g. `@symphony`). Opt-in via `fix_pr: true` in `WORKFLOW.md`; enabled in this repo.
+- **Rust implementation notes:** `docs/SPEC/` — problem statement, domain model, workflow, config, orchestration, polling, workspace, agent runner, tracker, prompt construction, logging, failure recovery, security, reference algorithms, testing, checklist.
 
 ## Development
 
