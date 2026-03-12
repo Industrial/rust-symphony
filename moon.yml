@@ -42,7 +42,7 @@ tasks:
   coverage:
     description: 'Run tests with llvm-cov and generate HTML coverage report'
     command: 'cargo'
-    args: ['llvm-cov', 'nextest', '--html', '--output-dir', 'target/llvm-cov/html']
+    args: ['llvm-cov', 'nextest']
     deps: ['~:format']
     inputs:
       - 'Cargo.toml'
@@ -50,7 +50,7 @@ tasks:
       - '**/*.rs'
     options:
       cache: false
-      outputStyle: buffer-only-failure
+      # outputStyle: buffer-only-failure
   # Check documentation
   check-docs:
     description: 'Build docs and run clippy with missing_docs_in_private_items'
