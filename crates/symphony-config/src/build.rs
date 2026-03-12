@@ -26,6 +26,7 @@ struct RawTracker {
   pr_open_label: Option<String>,
   fix_pr_head_branch_pattern: Option<String>,
   mention_handle: Option<String>,
+  pr_base_branch: Option<String>,
 }
 
 /// Raw runner map from workflow front matter.
@@ -120,6 +121,7 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     pr_open_label: tracker.pr_open_label,
     fix_pr_head_branch_pattern: tracker.fix_pr_head_branch_pattern,
     mention_handle: tracker.mention_handle,
+    pr_base_branch: tracker.pr_base_branch,
   };
 
   let runner_raw = raw
@@ -501,6 +503,29 @@ mod tests {
     assert_eq!(config.tracker.mention_handle.as_deref(), Some("symphony"));
   }
 
+  #[test]
+  fn from_workflow_config_tracker_pr_base_branch_omitted() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert!(config.tracker.pr_base_branch.is_none());
+    assert_eq!(config.tracker.effective_pr_base_branch(), "main");
+  }
+
+  #[test]
+  fn from_workflow_config_tracker_pr_base_branch_parsed() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k", "pr_base_branch": "develop" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert_eq!(config.tracker.pr_base_branch.as_deref(), Some("develop"));
+    assert_eq!(config.tracker.effective_pr_base_branch(), "develop");
+  }
+
+  #[test]
   fn from_workflow_config_workspace_main_repo_path_omitted() {
     let value = serde_json::json!({
         "tracker": { "repo": "r", "api_key": "k" },

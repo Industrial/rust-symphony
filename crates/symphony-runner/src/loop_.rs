@@ -19,7 +19,7 @@ use symphony_orchestration::{
   AgentUpdatePayload, OrchestratorMessage, WorkerExitReason, apply_agent_update, apply_worker_exit,
   available_slots, can_dispatch, release_claim, remove_retry_on_dispatch,
 };
-use symphony_prompt::render_prompt;
+use symphony_prompt::{WorkflowPromptContext, render_prompt};
 use symphony_tracker::{
   fetch_candidate_issues, fetch_check_runs_for_ref, fetch_commit_status_for_ref,
   fetch_has_qualifying_mention, fetch_issue_states_by_ids, fetch_issues_with_label,
@@ -649,7 +649,15 @@ async fn run_worker_to_completion(
     }
   }
 
-  let prompt = match render_prompt(&prompt_template, &issue, Some(retry_attempt)) {
+  let workflow_ctx = WorkflowPromptContext {
+    pr_base_branch: config.tracker.effective_pr_base_branch().to_string(),
+  };
+  let prompt = match render_prompt(
+    &prompt_template,
+    &issue,
+    Some(retry_attempt),
+    Some(&workflow_ctx),
+  ) {
     Ok(p) => p,
     Err(e) => {
       warn!(%issue_id, %e, "render prompt failed");
@@ -800,6 +808,7 @@ mod tests {
         pr_open_label: None,
         fix_pr_head_branch_pattern: None,
         mention_handle: None,
+        pr_base_branch: None,
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),

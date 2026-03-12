@@ -39,6 +39,8 @@ pub struct TrackerConfig {
   pub fix_pr_head_branch_pattern: Option<String>,
   /// SPEC_ADDENDUM_2 B.5: handle to look for in comments (e.g. "symphony" → @symphony). If set, qualifying mention triggers dispatch.
   pub mention_handle: Option<String>,
+  /// Base branch for worker branches and PR target (e.g. main, develop). When unset, default is "main".
+  pub pr_base_branch: Option<String>,
 }
 
 impl TrackerConfig {
@@ -75,6 +77,11 @@ impl TrackerConfig {
       .terminal_states
       .as_deref()
       .unwrap_or_else(|| DEFAULT_TERMINAL_STATES.as_slice())
+  }
+
+  /// Base branch for worker branches and PR target; defaults to "main" when not configured.
+  pub fn effective_pr_base_branch(&self) -> &str {
+    self.pr_base_branch.as_deref().unwrap_or("main")
   }
 }
 
@@ -226,6 +233,7 @@ mod tests {
         pr_open_label: None,
         fix_pr_head_branch_pattern: None,
         mention_handle: None,
+        pr_base_branch: None,
       },
       runner: RunnerConfig {
         command: "codex app-server".into(),
@@ -315,6 +323,7 @@ mod tests {
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
+      pr_base_branch: None,
     };
     assert!(t.effective_exclude_labels().is_none());
   }
@@ -333,6 +342,7 @@ mod tests {
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
+      pr_base_branch: None,
     };
     assert_eq!(
       t.effective_exclude_labels(),
@@ -354,6 +364,7 @@ mod tests {
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
+      pr_base_branch: None,
     };
     let eff = t.effective_exclude_labels().unwrap();
     assert_eq!(eff.len(), 2);
@@ -375,6 +386,7 @@ mod tests {
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
+      pr_base_branch: None,
     };
     assert_eq!(t.effective_exclude_labels(), Some(vec!["claimed".into()]));
   }
@@ -393,6 +405,7 @@ mod tests {
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
+      pr_base_branch: None,
     };
     let eff = t.effective_exclude_labels().unwrap();
     assert_eq!(eff.len(), 2);
@@ -413,6 +426,7 @@ mod tests {
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
+      pr_base_branch: None,
     };
     assert_eq!(t.active_states_slice(), &["open".to_string()]);
   }
@@ -431,6 +445,7 @@ mod tests {
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
+      pr_base_branch: None,
     };
     assert_eq!(
       t.active_states_slice(),
@@ -452,6 +467,7 @@ mod tests {
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
+      pr_base_branch: None,
     };
     assert_eq!(t.terminal_states_slice(), &["closed".to_string()]);
   }
@@ -470,10 +486,49 @@ mod tests {
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
+      pr_base_branch: None,
     };
     assert_eq!(
       t.terminal_states_slice(),
       &["closed".to_string(), "done".to_string()]
     );
+  }
+
+  #[test]
+  fn effective_pr_base_branch_default() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: None,
+      claim_label: None,
+      pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
+      mention_handle: None,
+      pr_base_branch: None,
+    };
+    assert_eq!(t.effective_pr_base_branch(), "main");
+  }
+
+  #[test]
+  fn effective_pr_base_branch_explicit() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: None,
+      claim_label: None,
+      pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
+      mention_handle: None,
+      pr_base_branch: Some("develop".into()),
+    };
+    assert_eq!(t.effective_pr_base_branch(), "develop");
   }
 }
