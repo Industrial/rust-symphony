@@ -14,7 +14,7 @@ runs:
     - uses: DeterminateSystems/magic-nix-cache-action@main
     - name: Setup Cachix
       if: inputs.cachix-cache-name != ''
-      uses: cachix/cachix-action@v26
+      uses: cachix/cachix-action@v16
       with:
         name: ${{ inputs.cachix-cache-name }}
         authToken: ${{ env.CACHIX_AUTH_TOKEN }}
