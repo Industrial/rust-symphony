@@ -64,6 +64,8 @@ jobs:
         run: |
           OWNER="${GITHUB_REPOSITORY%%/*}"
           REPO="${GITHUB_REPOSITORY#*/}"
-          echo "### Coverage report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**[View coverage report](https://${OWNER}.github.io/${REPO}/)**" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### Coverage report"
+            echo ""
+            echo "**[View coverage report](https://${OWNER}.github.io/${REPO}/)**"
+          } >> "$GITHUB_STEP_SUMMARY"
