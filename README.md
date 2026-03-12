@@ -51,6 +51,23 @@ devenv shell -- cargo run -p symphony-runner -- /path/to/WORKFLOW.md
 - **Specification:** [docs/SPEC.md](docs/SPEC.md) — language-agnostic Symphony service spec.
 - **Rust implementation notes:** `docs/01-problem-and-goals.md` through `docs/17-implementation-checklist.md` — problem statement, domain model, workflow, config, orchestration, polling, workspace, agent runner, tracker, prompt construction, logging, failure recovery, security, reference algorithms, testing, checklist.
 
+## Verifying release attestations
+
+Release binaries produced by the [Release & Publish workflow](.github/workflows/publish.yml) are signed with **GitHub Artifact Attestations** (Sigstore). You can verify that an artifact was built by this repository’s workflow and has not been tampered with.
+
+1. **Download the artifact** from the [Releases](https://github.com/Industrial/rust-symphony/releases) page (e.g. `symphony-v1.0.0-x86_64-unknown-linux-gnu.tar.gz`).
+2. **Verify the attestation** using the [GitHub CLI](https://cli.github.com/) (requires `gh` and a repository clone or the attestation bundle):
+
+   ```bash
+   gh attestation verify <artifact-file> --owner Industrial --repo rust-symphony
+   ```
+
+   If you have the attestation bundle (e.g. from the Actions run’s artifact or the [attestation viewer](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations#viewing-attestations-for-a-workflow-run)), you can pass it with `--bundle`.
+
+3. **In the GitHub UI:** open the workflow run that created the release, then the “Attestations” (or “Summary”) tab to see signed attestations for each artifact.
+
+The publish workflow uses the [attest-build-provenance](https://github.com/actions/attest-build-provenance) action and the permissions `id-token: write`, `contents: read`, and `attestations: write` for the build job that produces release binaries.
+
 ## Development
 
 - **Rust:** 2021 edition. Format with `cargo fmt`, lint with `cargo clippy`.
