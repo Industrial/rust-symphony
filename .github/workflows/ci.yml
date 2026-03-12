@@ -31,10 +31,12 @@ jobs:
           targets: ":format :check :build :test :audit :check-docs"
           use-affected: "true"
       - name: Run coverage
-        uses: ./.github/actions/run-devenv-moon
-        with:
-          targets: ":coverage"
-          use-affected: "false"
+        shell: bash
+        env:
+          MOON_TOOLCHAIN_FORCE_GLOBALS: rust
+        run: |
+          unset MOON_BASE MOON_HEAD
+          devenv shell -- moon run :coverage
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
