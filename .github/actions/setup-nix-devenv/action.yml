@@ -20,7 +20,8 @@ runs:
       uses: cachix/cachix-action@v16
       with:
         name: ${{ inputs.cachix-cache-name }}
-        authToken: ${{ env.CACHIX_AUTH_TOKEN }}
+        # Only pass authToken when pushing (main); otherwise the action tries to start the push daemon and fails in CI.
+        authToken: ${{ inputs.allow-cache-push == 'true' && env.CACHIX_AUTH_TOKEN }}
         skipPush: ${{ inputs.allow-cache-push != 'true' }}
     - name: Install devenv 2.x
       shell: bash
