@@ -2,42 +2,29 @@
 //!
 //! See docs/06-orchestration.md (Orchestrator Task Structure), docs/07-polling-scheduling.md.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::{RwLock, mpsc};
-use tracing::{info, warn};
+use tracing::info;
 
-use symphony_config::{ServiceConfig, from_workflow_config};
+use clap::Parser;
+use symphony_config::{from_workflow_config, ServiceConfig};
 use symphony_domain::OrchestratorState;
 use symphony_orchestration::OrchestratorMessage;
-use symphony_tracker::fetch_issues_by_states;
 use symphony_workflow::{load_workflow, resolve_workflow_path};
-use symphony_workspace::workspace_path;
 
+use crate::cli::Cli;
 use crate::loop_::{dry_run_one_poll, run_orchestrator};
+use crate::reload::spawn_workflow_reload_task;
+use crate::startup::run_startup_cleanup;
 
+mod cli;
 mod loop_;
+mod reload;
+mod startup;
 
 const WORKFLOW_RELOAD_POLL_SECS: u64 = 5;
-
-fn print_usage() {
-  eprintln!(
-    r#"symphony [OPTIONS] [WORKFLOW_PATH]
-
-Run the Symphony orchestrator: poll the tracker, dispatch agents per workflow config.
-
-Options:
-  --dry-run    Run one poll cycle only: load config and workflow, fetch candidates,
-               apply sort and concurrency rules, log what would be dispatched, then exit.
-               No workers are started, no workspaces created, no tracker writes.
-  -h, --help   Show this help.
-
-WORKFLOW_PATH  Path to WORKFLOW.md (optional; default from env or repo root).
-"#
-  );
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -48,31 +35,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     )
     .init();
 
-  let args = std::env::args().skip(1);
-  let mut dry_run = false;
-  let mut workflow_path_arg: Option<PathBuf> = None;
-  for arg in args {
-    match arg.as_str() {
-      "--dry-run" => dry_run = true,
-      "-h" | "--help" => {
-        print_usage();
-        return Ok(());
-      }
-      _ if !arg.starts_with('-') => {
-        workflow_path_arg = Some(PathBuf::from(arg));
-        break;
-      }
-      _ => {}
-    }
-  }
+  let cli = Cli::parse();
 
-  let resolved_path = resolve_workflow_path(workflow_path_arg.clone())?;
+  let resolved_path = resolve_workflow_path(cli.workflow_path.clone())?;
   let content = std::fs::read_to_string(&resolved_path)?;
   let definition = load_workflow(&content)?;
   let config = from_workflow_config(&definition.config)?;
   config.validate_dispatch()?;
 
-  if dry_run {
+  if cli.dry_run {
     dry_run_one_poll(&config).await?;
     return Ok(());
   }
@@ -88,38 +59,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     config.clone(),
     definition.prompt_template.clone(),
   )));
-  let initial_mtime = std::fs::metadata(&resolved_path)
-    .ok()
-    .and_then(|m| m.modified().ok());
 
-  // Startup: remove workspace dirs for issues already in terminal state (cleanup from previous runs).
-  if let Some(terminal) = config.tracker.terminal_states.as_deref() {
-    if !terminal.is_empty() {
-      let endpoint = config.tracker.endpoint_or_default();
-      match fetch_issues_by_states(
-        &endpoint,
-        &config.tracker.api_key,
-        &config.tracker.repo,
-        terminal,
-      )
-      .await
-      {
-        Ok(issues) => {
-          for issue in issues {
-            let path = workspace_path(&config.workspace.root, &issue.identifier);
-            if path.exists() {
-              if let Err(e) = tokio::fs::remove_dir_all(&path).await {
-                warn!(path = %path.display(), %e, "startup cleanup: failed to remove workspace");
-              } else {
-                info!(identifier = %issue.identifier, "startup cleanup: removed terminal workspace");
-              }
-            }
-          }
-        }
-        Err(e) => warn!(%e, "startup cleanup: fetch terminal issues failed, continuing"),
-      }
-    }
-  }
+  run_startup_cleanup(&config).await;
 
   let (tx, rx) = mpsc::unbounded_channel();
   let start = Instant::now();
@@ -150,46 +91,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     exit_tx,
   ));
 
-  // Optional: reload WORKFLOW.md on mtime change (keep last good config on error).
-  let workflow_state_reload = Arc::clone(&workflow_state);
-  let reload_handle = tokio::spawn(async move {
-    let mut last_mtime = initial_mtime;
-    loop {
-      tokio::time::sleep(tokio::time::Duration::from_secs(WORKFLOW_RELOAD_POLL_SECS)).await;
-      let path = match resolve_workflow_path(workflow_path_arg.clone()) {
-        Ok(p) => p,
-        Err(_) => continue,
-      };
-      let meta = match tokio::fs::metadata(&path).await {
-        Ok(m) => m,
-        Err(_) => continue,
-      };
-      let modified = match meta.modified() {
-        Ok(t) => t,
-        Err(_) => continue,
-      };
-      if Some(modified) != last_mtime {
-        match std::fs::read_to_string(&path) {
-          Ok(content) => match load_workflow(&content) {
-            Ok(def) => match from_workflow_config(&def.config) {
-              Ok(cfg) => {
-                if cfg.validate_dispatch().is_ok() {
-                  *workflow_state_reload.write().await = (cfg, def.prompt_template);
-                  last_mtime = Some(modified);
-                  info!("workflow reloaded");
-                } else {
-                  warn!("workflow reload: validation failed, keeping previous");
-                }
-              }
-              Err(e) => warn!(%e, "workflow reload: config failed, keeping previous"),
-            },
-            Err(e) => warn!(%e, "workflow reload: parse failed, keeping previous"),
-          },
-          Err(e) => warn!(%e, "workflow reload: read failed"),
-        }
-      }
-    }
-  });
+  let reload_handle =
+    spawn_workflow_reload_task(Arc::clone(&workflow_state), cli.workflow_path, WORKFLOW_RELOAD_POLL_SECS);
 
   let tick_tx = tx.clone();
   let tick_handle = tokio::spawn(async move {

@@ -16,6 +16,50 @@ const PER_PAGE: u32 = 100;
 /// HTTP timeout for GitHub API requests (seconds).
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 
+/// GitHub API client with shared timeout and auth headers.
+#[derive(Clone)]
+pub struct GitHubApiClient {
+  client: reqwest::Client,
+  auth_header: String,
+}
+
+impl GitHubApiClient {
+  /// Build a client; errors if api_key is empty or client build fails.
+  pub fn new(api_key: &str) -> Result<Self, TrackerError> {
+    if api_key.is_empty() {
+      return Err(TrackerError::MissingTrackerApiKey);
+    }
+    let client = reqwest::Client::builder()
+      .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+      .build()
+      .map_err(|e| TrackerError::GitHubApiRequest(e.to_string()))?;
+    let auth_header = format!("Bearer {}", api_key.trim().trim_start_matches("Bearer "));
+    Ok(Self {
+      client,
+      auth_header,
+    })
+  }
+
+  /// Send GET to url with auth and standard headers; caller checks status and parses body.
+  pub async fn get(&self, url: &str) -> Result<reqwest::Response, TrackerError> {
+    self
+      .client
+      .get(url)
+      .header(AUTHORIZATION, &self.auth_header)
+      .header(ACCEPT, "application/vnd.github+json")
+      .header(USER_AGENT, "rust-symphony")
+      .send()
+      .await
+      .map_err(|e| TrackerError::GitHubApiRequest(e.to_string()))
+  }
+
+  /// Build the GitHub REST URL for repo issues (e.g. .../repos/owner/repo/issues?state=open).
+  pub fn repo_issues_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -> String {
+    let base = endpoint.trim_end_matches('/');
+    format!("{}/repos/{}/{}/issues{}", base, owner, repo, path_suffix)
+  }
+}
+
 /// Parse "owner/repo" into (owner, repo). Returns error if format invalid.
 pub fn parse_repo(repo: &str) -> Result<(String, String), TrackerError> {
   let parts: Vec<&str> = repo.split('/').collect();
@@ -30,23 +74,6 @@ pub fn parse_issue_number(identifier: &str) -> Option<u64> {
   identifier.rsplit_once('#')?.1.parse().ok()
 }
 
-/// Build a reqwest client with timeout; errors if api_key is empty.
-fn make_client(api_key: &str) -> Result<reqwest::Client, TrackerError> {
-  if api_key.is_empty() {
-    return Err(TrackerError::MissingTrackerApiKey);
-  }
-  reqwest::Client::builder()
-    .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-    .build()
-    .map_err(|e| TrackerError::GitHubApiRequest(e.to_string()))
-}
-
-/// Build the GitHub REST URL for repo issues (e.g. .../repos/owner/repo/issues?state=open).
-fn repo_issues_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -> String {
-  let base = endpoint.trim_end_matches('/');
-  format!("{}/repos/{}/{}/issues{}", base, owner, repo, path_suffix)
-}
-
 /// Fetch all issues in the given states (e.g. open). Excludes pull requests.
 /// Optionally filters by include_labels (whitelist) and exclude_labels (blacklist) per SPEC_ADDENDUM_1 A.1.
 pub async fn fetch_candidate_issues(
@@ -58,8 +85,7 @@ pub async fn fetch_candidate_issues(
   exclude_labels: Option<&[String]>,
 ) -> Result<Vec<Issue>, TrackerError> {
   let (owner, repo_name) = parse_repo(repo)?;
-  let client = make_client(api_key)?;
-  let auth = format!("Bearer {}", api_key.trim().trim_start_matches("Bearer "));
+  let api = GitHubApiClient::new(api_key)?;
 
   let mut all = Vec::new();
   let states = if active_states.is_empty() {
@@ -71,20 +97,13 @@ pub async fn fetch_candidate_issues(
   for state in &states {
     let mut page = 1u32;
     loop {
-      let url = repo_issues_url(
+      let url = GitHubApiClient::repo_issues_url(
         endpoint,
         &owner,
         &repo_name,
         &format!("?state={}&per_page={}&page={}", state, PER_PAGE, page),
       );
-      let res = client
-        .get(&url)
-        .header(AUTHORIZATION, &auth)
-        .header(ACCEPT, "application/vnd.github+json")
-        .header(USER_AGENT, "rust-symphony")
-        .send()
-        .await
-        .map_err(|e| TrackerError::GitHubApiRequest(e.to_string()))?;
+      let res = api.get(&url).await?;
 
       if !res.status().is_success() {
         return Err(TrackerError::GitHubApiStatus(res.status().as_u16()));
@@ -101,7 +120,6 @@ pub async fn fetch_candidate_issues(
 
       let page_len = body.len();
       for value in &body {
-        // Exclude pull requests
         if value.get("pull_request").is_some() {
           continue;
         }
@@ -131,8 +149,7 @@ pub async fn fetch_issue_states_by_ids(
   identifiers: &[String],
 ) -> Result<Vec<Issue>, TrackerError> {
   let (owner, repo_name) = parse_repo(repo)?;
-  let client = make_client(api_key)?;
-  let auth = format!("Bearer {}", api_key.trim().trim_start_matches("Bearer "));
+  let api = GitHubApiClient::new(api_key)?;
 
   let mut results = Vec::with_capacity(identifiers.len());
   for id in identifiers {
@@ -140,15 +157,8 @@ pub async fn fetch_issue_states_by_ids(
       Some(n) => n,
       None => continue,
     };
-    let url = repo_issues_url(endpoint, &owner, &repo_name, &format!("/{}", number));
-    let res = client
-      .get(&url)
-      .header(AUTHORIZATION, &auth)
-      .header(ACCEPT, "application/vnd.github+json")
-      .header(USER_AGENT, "rust-symphony")
-      .send()
-      .await
-      .map_err(|e| TrackerError::GitHubApiRequest(e.to_string()))?;
+    let url = GitHubApiClient::repo_issues_url(endpoint, &owner, &repo_name, &format!("/{}", number));
+    let res = api.get(&url).await?;
 
     if !res.status().is_success() {
       continue;
@@ -212,5 +222,29 @@ mod tests {
     assert_eq!(parse_issue_number("owner/repo"), None);
     assert_eq!(parse_issue_number("owner/repo#"), None);
     assert_eq!(parse_issue_number("owner/repo#x"), None);
+  }
+
+  #[test]
+  fn github_api_client_new_empty_key_err() {
+    assert!(GitHubApiClient::new("").is_err());
+  }
+
+  #[test]
+  fn github_api_client_new_ok() {
+    assert!(GitHubApiClient::new("test-token").is_ok());
+  }
+
+  #[test]
+  fn repo_issues_url_format() {
+    let url =
+      GitHubApiClient::repo_issues_url("https://api.github.com", "owner", "repo", "?state=open");
+    assert_eq!(url, "https://api.github.com/repos/owner/repo/issues?state=open");
+  }
+
+  #[test]
+  fn repo_issues_url_trim_trailing_slash() {
+    let url =
+      GitHubApiClient::repo_issues_url("https://api.github.com/", "a", "b", "/42");
+    assert_eq!(url, "https://api.github.com/repos/a/b/issues/42");
   }
 }
