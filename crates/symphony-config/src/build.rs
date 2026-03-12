@@ -24,6 +24,7 @@ struct RawTracker {
   exclude_labels: Option<Vec<String>>,
   claim_label: Option<String>,
   pr_open_label: Option<String>,
+  fix_pr_head_branch_pattern: Option<String>,
 }
 
 /// Raw runner map from workflow front matter.
@@ -115,6 +116,7 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     exclude_labels: tracker.exclude_labels,
     claim_label: tracker.claim_label,
     pr_open_label: tracker.pr_open_label,
+    fix_pr_head_branch_pattern: tracker.fix_pr_head_branch_pattern,
   };
 
   let runner_raw = raw
@@ -455,34 +457,25 @@ mod tests {
   }
 
   #[test]
-  fn from_workflow_config_fix_pr_omitted_defaults_false() {
+  fn from_workflow_config_tracker_fix_pr_head_branch_pattern_omitted() {
     let value = serde_json::json!({
         "tracker": { "repo": "r", "api_key": "k" },
         "runner": { "command": "c" }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert!(!config.fix_pr);
+    assert!(config.tracker.fix_pr_head_branch_pattern.is_none());
   }
 
   #[test]
-  fn from_workflow_config_fix_pr_explicit_true() {
+  fn from_workflow_config_tracker_fix_pr_head_branch_pattern_parsed() {
     let value = serde_json::json!({
-        "fix_pr": true,
-        "tracker": { "repo": "r", "api_key": "k" },
+        "tracker": { "repo": "r", "api_key": "k", "fix_pr_head_branch_pattern": "agent/issue-{number}" },
         "runner": { "command": "c" }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert!(config.fix_pr);
-  }
-
-  #[test]
-  fn from_workflow_config_fix_pr_explicit_false() {
-    let value = serde_json::json!({
-        "fix_pr": false,
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
-    });
-    let config = from_workflow_config(&value).unwrap();
-    assert!(!config.fix_pr);
+    assert_eq!(
+      config.tracker.fix_pr_head_branch_pattern.as_deref(),
+      Some("agent/issue-{number}")
+    );
   }
 }

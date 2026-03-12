@@ -23,3 +23,8 @@ Specification: **SPEC_ADDENDUM_2 §B.2**.
 
 - **symphony-tracker (or new module):** Implement “list PRs for issue” or “get PR by head branch pattern.” Document the resolution strategy (branch name vs “Fixes #N”).
 - **symphony-orchestration:** Build fix-PR candidate set each tick when `fix_pr` is true: filter issues that have `pr_open_label`, are active, not in `running`, and pass concurrency; then resolve PR per issue. If no PR found, do not enqueue for fix-PR dispatch.
+
+### Rust implementation: issue→PR resolution
+
+- **Method used:** Head branch pattern. Config key `tracker.fix_pr_head_branch_pattern` (optional) defaults to `symphony/issue-{number}`. The string `{number}` is replaced by the issue number; the client calls GitHub `GET /repos/{owner}/{repo}/pulls?state=open&head=owner:branch`. If one open PR matches, it is the resolved PR; if none, the issue is "wait" (no dispatch).
+- **Alternative (not yet implemented):** Resolve by "Fixes #N" in PR body/title (list open PRs and filter by body/title).
