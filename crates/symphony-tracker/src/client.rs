@@ -425,8 +425,11 @@ pub async fn fetch_commit_status_for_ref(
   Ok(CombinedStatusInfo { state })
 }
 
-/// Fetch issue comments and PR review comments; return true if any contain @{mention_handle} (SPEC_ADDENDUM_2 B.5).
-/// If created_after is Some (ISO8601 string, e.g. PR updated_at), only comments created after that time count (newness rule B.5.1).
+/// Fetch issue comments and PR comments; return true if any contain @{mention_handle} (SPEC_ADDENDUM_2 B.5).
+/// **Qualifying mention:** body contains the substring `@<mention_handle>` (e.g. `@symphony`).
+/// **Newness rule (B.5.1):** If `created_after` is Some (ISO8601, e.g. PR `updated_at`), only comments
+/// created after that time count. This implementation uses "comments created after the PR's last update"
+/// to avoid re-dispatch on the same old comment every poll. Alternative: last dispatch time or last seen comment id per issue.
 pub async fn fetch_has_qualifying_mention(
   endpoint: &str,
   api_key: &str,
