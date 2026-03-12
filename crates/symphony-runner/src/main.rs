@@ -9,7 +9,7 @@ use tokio::sync::{RwLock, mpsc};
 use tracing::info;
 
 use clap::Parser;
-use symphony_config::{from_workflow_config, ServiceConfig};
+use symphony_config::{ServiceConfig, from_workflow_config};
 use symphony_domain::OrchestratorState;
 use symphony_orchestration::OrchestratorMessage;
 use symphony_workflow::{load_workflow, resolve_workflow_path};
@@ -91,8 +91,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     exit_tx,
   ));
 
-  let reload_handle =
-    spawn_workflow_reload_task(Arc::clone(&workflow_state), cli.workflow_path, WORKFLOW_RELOAD_POLL_SECS);
+  let reload_handle = spawn_workflow_reload_task(
+    Arc::clone(&workflow_state),
+    cli.workflow_path,
+    WORKFLOW_RELOAD_POLL_SECS,
+  );
 
   let tick_tx = tx.clone();
   let tick_handle = tokio::spawn(async move {

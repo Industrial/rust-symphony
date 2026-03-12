@@ -157,7 +157,8 @@ pub async fn fetch_issue_states_by_ids(
       Some(n) => n,
       None => continue,
     };
-    let url = GitHubApiClient::repo_issues_url(endpoint, &owner, &repo_name, &format!("/{}", number));
+    let url =
+      GitHubApiClient::repo_issues_url(endpoint, &owner, &repo_name, &format!("/{}", number));
     let res = api.get(&url).await?;
 
     if !res.status().is_success() {
@@ -238,13 +239,15 @@ mod tests {
   fn repo_issues_url_format() {
     let url =
       GitHubApiClient::repo_issues_url("https://api.github.com", "owner", "repo", "?state=open");
-    assert_eq!(url, "https://api.github.com/repos/owner/repo/issues?state=open");
+    assert_eq!(
+      url,
+      "https://api.github.com/repos/owner/repo/issues?state=open"
+    );
   }
 
   #[test]
   fn repo_issues_url_trim_trailing_slash() {
-    let url =
-      GitHubApiClient::repo_issues_url("https://api.github.com/", "a", "b", "/42");
+    let url = GitHubApiClient::repo_issues_url("https://api.github.com/", "a", "b", "/42");
     assert_eq!(url, "https://api.github.com/repos/a/b/issues/42");
   }
 }

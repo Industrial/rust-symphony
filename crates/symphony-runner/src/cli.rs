@@ -11,7 +11,9 @@ use clap::Parser;
 /// Symphony orchestrator: poll tracker, dispatch agents per WORKFLOW.md.
 #[derive(Debug, Clone, Parser)]
 #[command(name = "symphony")]
-#[command(about = "Run the Symphony orchestrator: poll the tracker, dispatch agents per workflow config.")]
+#[command(
+  about = "Run the Symphony orchestrator: poll the tracker, dispatch agents per workflow config."
+)]
 #[command(long_about = None)]
 pub struct Cli {
   /// Run one poll cycle only: load config and workflow, fetch candidates, apply sort and

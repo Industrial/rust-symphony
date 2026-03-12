@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
-use symphony_config::{from_workflow_config, ServiceConfig};
+use symphony_config::{ServiceConfig, from_workflow_config};
 use symphony_workflow::{load_workflow, resolve_workflow_path};
 
 /// Spawn a task that periodically checks WORKFLOW.md mtime and reloads config + prompt into `workflow_state`.

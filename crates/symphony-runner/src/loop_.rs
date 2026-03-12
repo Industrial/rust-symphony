@@ -167,7 +167,15 @@ async fn poll_tick(
 ) {
   reconcile_running(state, config, tx.clone(), worker_handles).await;
   terminate_stalled(state, config, now_ms, worker_handles).await;
-  process_due_retries(state, config, prompt_template, now_ms, tx.clone(), worker_handles).await;
+  process_due_retries(
+    state,
+    config,
+    prompt_template,
+    now_ms,
+    tx.clone(),
+    worker_handles,
+  )
+  .await;
   let num_candidates =
     dispatch_new_candidates(state, config, prompt_template, tx, worker_handles).await;
   log_tick_summary(state, num_candidates);
@@ -201,7 +209,9 @@ async fn reconcile_running(
   {
     Ok(issues) => {
       for issue in issues {
-        let is_terminal = terminal.iter().any(|s| s.eq_ignore_ascii_case(&issue.state));
+        let is_terminal = terminal
+          .iter()
+          .any(|s| s.eq_ignore_ascii_case(&issue.state));
         let is_active = active.iter().any(|s| s.eq_ignore_ascii_case(&issue.state));
         if is_terminal || !is_active {
           let _ = tx.send(OrchestratorMessage::TerminateWorker {
@@ -313,7 +323,9 @@ async fn process_due_retries(
         state.retry_attempts.remove(&issue_id);
         if let Some(issue) = fetched.get(&identifier) {
           let is_active = active.iter().any(|s| s.eq_ignore_ascii_case(&issue.state));
-          let is_terminal = terminal.iter().any(|s| s.eq_ignore_ascii_case(&issue.state));
+          let is_terminal = terminal
+            .iter()
+            .any(|s| s.eq_ignore_ascii_case(&issue.state));
           let label_eligible = issue_passes_label_filters(
             issue,
             config.tracker.include_labels.as_deref(),
@@ -455,12 +467,7 @@ async fn run_worker_to_completion(
     Ok(p) => p,
     Err(e) => {
       warn!(%issue_id, %e, "ensure workspace failed");
-      release_claim_and_send_exit(
-        &tx,
-        &issue_id,
-        WorkerExitReason::Failed(e.to_string()),
-        0.0,
-      );
+      release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
       return;
     }
   };
@@ -476,12 +483,7 @@ async fn run_worker_to_completion(
   if let Some(ref script) = config.hooks.before_run {
     if let Err(e) = run_hook(script, &path, config.hooks.timeout_ms()).await {
       warn!(%issue_id, %e, "before_run hook failed");
-      release_claim_and_send_exit(
-        &tx,
-        &issue_id,
-        WorkerExitReason::Failed(e.to_string()),
-        0.0,
-      );
+      release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
       return;
     }
   }
@@ -490,12 +492,7 @@ async fn run_worker_to_completion(
     Ok(p) => p,
     Err(e) => {
       warn!(%issue_id, %e, "render prompt failed");
-      release_claim_and_send_exit(
-        &tx,
-        &issue_id,
-        WorkerExitReason::Failed(e.to_string()),
-        0.0,
-      );
+      release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
       return;
     }
   };
@@ -503,7 +500,11 @@ async fn run_worker_to_completion(
   let turn_timeout_ms = config.runner.turn_timeout_ms();
   let read_timeout_ms = config.runner.read_timeout_ms();
   let (update_tx, update_rx) = tokio::sync::mpsc::unbounded_channel::<AgentRunnerUpdate>();
-  tokio::spawn(forward_agent_updates(update_rx, issue_id.clone(), tx.clone()));
+  tokio::spawn(forward_agent_updates(
+    update_rx,
+    issue_id.clone(),
+    tx.clone(),
+  ));
 
   let protocol = match config.runner.runner_type {
     RunnerType::Codex => RunnerProtocol::Codex,
@@ -729,15 +730,16 @@ mod tests {
         retry_attempt: 0,
       },
     );
-    state
-      .retry_attempts
-      .insert("2".into(), symphony_domain::RetryEntry {
+    state.retry_attempts.insert(
+      "2".into(),
+      symphony_domain::RetryEntry {
         issue_id: "2".into(),
         identifier: "o/r#2".into(),
         attempt: 1,
         due_at_ms: 0,
         error: None,
-      });
+      },
+    );
     log_tick_summary(&state, 10);
   }
 }

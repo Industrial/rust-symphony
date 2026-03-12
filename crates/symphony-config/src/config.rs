@@ -403,7 +403,10 @@ mod tests {
       claim_label: None,
       pr_open_label: None,
     };
-    assert_eq!(t.active_states_slice(), &["open".to_string(), "in_progress".to_string()]);
+    assert_eq!(
+      t.active_states_slice(),
+      &["open".to_string(), "in_progress".to_string()]
+    );
   }
 
   #[test]
@@ -435,6 +438,9 @@ mod tests {
       claim_label: None,
       pr_open_label: None,
     };
-    assert_eq!(t.terminal_states_slice(), &["closed".to_string(), "done".to_string()]);
+    assert_eq!(
+      t.terminal_states_slice(),
+      &["closed".to_string(), "done".to_string()]
+    );
   }
 }
