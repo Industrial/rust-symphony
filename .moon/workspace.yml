@@ -10,11 +10,6 @@ hasher:
 # Rust workspace crates
 projects:
   - 'crates/*'
-  # Template crates (for testing template before generation)
-  - 'crates/forge-cli/templates/default/crates/*'
-  # Template root (for workspace-wide template tasks)
-  - 'crates/forge-cli/templates/default'
-  # Root workspace project for workspace-wide tasks
   - '.'
 vcs:
   client: 'git'

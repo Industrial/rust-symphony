@@ -23,6 +23,6 @@ runs:
       uses: actions/cache@v4
       with:
         path: .moon/cache
-        key: moon-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'crates/forge-cli/templates/default/frontend/bun.lockb', 'crates/forge-cli/templates/default/frontend/package.json') }}
+        key: moon-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
         restore-keys: |
           moon-${{ runner.os }}-
