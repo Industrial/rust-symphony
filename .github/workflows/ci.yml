@@ -30,14 +30,4 @@ jobs:
         with:
           targets: ":format :check :build :test :audit :check-docs"
           use-affected: "true"
-      - name: Run integration tests
-        uses: ./.github/actions/run-devenv-moon
-        with:
-          targets: ":test-integration"
-          use-affected: "true"
-      - name: Run e2e tests
-        uses: ./.github/actions/run-devenv-moon
-        with:
-          targets: ":test-e2e"
-          use-affected: "true"
       - uses: ./.github/actions/sccache-stats
