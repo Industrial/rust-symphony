@@ -94,10 +94,11 @@ This is **attempt {{ attempt }}**. A previous run may have been interrupted or f
 
 1. **Claim the issue** (if the workflow uses a claim label): Add the claim label to this issue first (e.g. `gh issue edit … --add-label symphony-claimed`) so no other worker picks it up.
 2. Read the issue and the codebase in this workspace.
-3. Implement or fix what the issue asks for. Use a single branch per issue (e.g. `symphony/issue-<number>`) if opening a PR.
-4. Run tests and fix any failures (`devenv shell -- moon run :test` as appropriate).
-5. Follow project conventions (see `.cursor/rules`, `docs/`, and existing code).
-6. When done, either:
+3. **Fix-PR runs (SPEC_ADDENDUM_2 B.7):** If this issue already has an open PR (e.g. you were re-dispatched because CI failed or someone requested changes): use the **current branch**, pull or rebase as needed, make changes to address the failure or review feedback, commit and push. Do **not** open a new PR. When done, you may post a short comment on the issue or PR (e.g. "Pushed fixes for CI.").
+4. **New work:** Otherwise, implement what the issue asks for. Use a single branch per issue (e.g. `symphony/issue-<number>`) if opening a PR.
+5. Run tests and fix any failures (`devenv shell -- moon run :test` as appropriate).
+6. Follow project conventions (see `.cursor/rules`, `docs/`, and existing code).
+7. When done, either:
    - **PR-driven:** You MUST complete all of: (1) push your branch, (2) open a PR with body "Fixes #N" (e.g. `gh pr create --body "Fixes #N"`), (3) post a comment on this issue with the PR link (e.g. `gh issue comment <issue-number> --body "PR: https://github.com/…"`). Do not exit until all three are done. Do not merge the PR—a human merges. Optionally add the `pr_open_label` to the issue when the PR is open. **Or**
    - **Direct close:** Summarize in a comment, then **close this issue** (e.g. `gh issue close` or GitHub UI) so the runner stops picking it up. If you cannot close issues, add a clear "ready to close" comment for a maintainer.
 
