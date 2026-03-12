@@ -21,7 +21,8 @@ use symphony_orchestration::{
 };
 use symphony_prompt::render_prompt;
 use symphony_tracker::{
-  fetch_candidate_issues, fetch_issue_states_by_ids, fetch_issues_with_label,
+  fetch_candidate_issues, fetch_check_runs_for_ref, fetch_commit_status_for_ref,
+  fetch_has_qualifying_mention, fetch_issue_states_by_ids, fetch_issues_with_label,
   issue_passes_label_filters, parse_issue_number, resolve_pr_for_issue,
 };
 use symphony_workspace::{ensure_workspace_dir, run_hook};
@@ -424,16 +425,80 @@ async fn dispatch_new_candidates(
             )
             .await
             {
-              Ok(Some(_pr)) => {
-                dispatch_worker(
-                  state,
-                  &issue,
-                  prompt_template,
-                  config,
-                  tx.clone(),
-                  worker_handles,
+              Ok(Some(pr)) => {
+                let endpoint = config.tracker.endpoint_or_default();
+                let api_key = &config.tracker.api_key;
+                let repo = &config.tracker.repo;
+
+                let any_check_failed = match fetch_check_runs_for_ref(
+                  &endpoint,
+                  api_key,
+                  repo,
+                  &pr.head_ref,
                 )
-                .await;
+                .await
+                {
+                  Ok(runs) => runs.iter().any(|r| {
+                    r.conclusion.as_deref().map_or(false, |c| {
+                      matches!(c, "failure" | "cancelled" | "timed_out" | "action_required")
+                    })
+                  }),
+                  Err(e) => {
+                    debug!(%issue.id, %e, "fetch check runs for fix-PR failed, treating as no failure");
+                    false
+                  }
+                };
+
+                let commit_failed = if !any_check_failed {
+                  match fetch_commit_status_for_ref(&endpoint, api_key, repo, &pr.head_ref).await {
+                    Ok(status) => {
+                      let s = status.state.as_str();
+                      s == "failure" || s == "error"
+                    }
+                    Err(e) => {
+                      debug!(%issue.id, %e, "fetch commit status for fix-PR failed, treating as no failure");
+                      false
+                    }
+                  }
+                } else {
+                  false
+                };
+
+                let has_mention = match config.tracker.mention_handle.as_deref() {
+                  Some(handle) => match fetch_has_qualifying_mention(
+                    &endpoint,
+                    api_key,
+                    repo,
+                    issue_number,
+                    pr.pr_number,
+                    handle,
+                    pr.pr_updated_at.as_deref(),
+                  )
+                  .await
+                  {
+                    Ok(b) => b,
+                    Err(e) => {
+                      debug!(%issue.id, %e, "fetch mentions for fix-PR failed, treating as no mention");
+                      false
+                    }
+                  },
+                  None => false,
+                };
+
+                let should_dispatch = any_check_failed || commit_failed || has_mention;
+                if should_dispatch {
+                  dispatch_worker(
+                    state,
+                    &issue,
+                    prompt_template,
+                    config,
+                    tx.clone(),
+                    worker_handles,
+                  )
+                  .await;
+                } else {
+                  debug!(%issue.id, "fix-PR candidate: no failed checks and no qualifying mention, waiting");
+                }
               }
               Ok(None) => {
                 debug!(%issue.id, "fix-PR candidate has no PR (head branch pattern), waiting");
@@ -712,6 +777,7 @@ mod tests {
         claim_label: None,
         pr_open_label: None,
         fix_pr_head_branch_pattern: None,
+        mention_handle: None,
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),

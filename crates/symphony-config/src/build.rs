@@ -25,6 +25,7 @@ struct RawTracker {
   claim_label: Option<String>,
   pr_open_label: Option<String>,
   fix_pr_head_branch_pattern: Option<String>,
+  mention_handle: Option<String>,
 }
 
 /// Raw runner map from workflow front matter.
@@ -117,6 +118,7 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     claim_label: tracker.claim_label,
     pr_open_label: tracker.pr_open_label,
     fix_pr_head_branch_pattern: tracker.fix_pr_head_branch_pattern,
+    mention_handle: tracker.mention_handle,
   };
 
   let runner_raw = raw
@@ -477,5 +479,15 @@ mod tests {
       config.tracker.fix_pr_head_branch_pattern.as_deref(),
       Some("agent/issue-{number}")
     );
+  }
+
+  #[test]
+  fn from_workflow_config_tracker_mention_handle_parsed() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k", "mention_handle": "symphony" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert_eq!(config.tracker.mention_handle.as_deref(), Some("symphony"));
   }
 }

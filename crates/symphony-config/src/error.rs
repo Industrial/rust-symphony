@@ -51,6 +51,7 @@ mod tests {
       claim_label: None,
       pr_open_label: None,
       fix_pr_head_branch_pattern: None,
+      mention_handle: None,
     };
     let errs = t.validate().unwrap_err();
     let e = ConfigValidationError::Tracker(errs);

@@ -26,6 +26,24 @@ pub struct ResolvedPr {
   pub head_ref: String,
   /// Pull request number.
   pub pr_number: u64,
+  /// PR updated_at (ISO8601) for newness cutoff when fetching mentions (B.5.1).
+  pub pr_updated_at: Option<String>,
+}
+
+/// One check run from the Checks API (SPEC_ADDENDUM_2 B.3). Used to determine if any check failed.
+#[derive(Debug, Clone)]
+pub struct CheckRunInfo {
+  /// Conclusion when status is "completed": failure, success, cancelled, etc.
+  pub conclusion: Option<String>,
+  /// Status: queued, in_progress, completed, etc.
+  pub status: String,
+}
+
+/// Combined commit status from the commit status API (SPEC_ADDENDUM_2 B.3).
+#[derive(Debug, Clone)]
+pub struct CombinedStatusInfo {
+  /// Combined state: failure, pending, success.
+  pub state: String,
 }
 
 /// Maximum number of issues to request per GitHub API page.
@@ -82,6 +100,12 @@ impl GitHubApiClient {
   pub fn repo_pulls_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -> String {
     let base = endpoint.trim_end_matches('/');
     format!("{}/repos/{}/{}/pulls{}", base, owner, repo, path_suffix)
+  }
+
+  /// Build the GitHub REST URL for repo commits (e.g. .../repos/owner/repo/commits/ref/check-runs).
+  pub fn repo_commits_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -> String {
+    let base = endpoint.trim_end_matches('/');
+    format!("{}/repos/{}/{}/commits{}", base, owner, repo, path_suffix)
   }
 }
 
@@ -271,13 +295,183 @@ pub async fn resolve_pr_for_issue(
     let pr_number = obj.get("number")?.as_u64()?;
     let head = obj.get("head")?.as_object()?;
     let head_ref = head.get("ref")?.as_str()?.to_string();
+    let pr_updated_at = obj
+      .get("updated_at")
+      .and_then(|u| u.as_str())
+      .map(|s| s.to_string());
     Some(ResolvedPr {
       head_ref,
       pr_number,
+      pr_updated_at,
     })
   });
 
   Ok(pr)
+}
+
+/// Fetch check runs for a commit ref (SPEC_ADDENDUM_2 B.3). Ref can be branch name or SHA.
+/// Returns all check runs (paginated); caller determines if any have failed conclusion.
+pub async fn fetch_check_runs_for_ref(
+  endpoint: &str,
+  api_key: &str,
+  repo: &str,
+  ref_: &str,
+) -> Result<Vec<CheckRunInfo>, TrackerError> {
+  let (owner, repo_name) = parse_repo(repo)?;
+  let api = GitHubApiClient::new(api_key)?;
+
+  let mut all = Vec::new();
+  let mut page = 1u32;
+  loop {
+    let ref_encoded = urlencoding::encode(ref_);
+    let path = format!(
+      "/{}/check-runs?per_page={}&page={}",
+      ref_encoded, PER_PAGE, page
+    );
+    let url = GitHubApiClient::repo_commits_url(endpoint, &owner, &repo_name, &path);
+    let res = api.get(&url).await?;
+
+    if !res.status().is_success() {
+      return Err(TrackerError::GitHubApiStatus(res.status().as_u16()));
+    }
+
+    let body: Value = res
+      .json()
+      .await
+      .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
+
+    let check_runs = body
+      .get("check_runs")
+      .and_then(|a| a.as_array())
+      .map(|v| v.as_slice())
+      .unwrap_or_else(|| &[]);
+    if check_runs.is_empty() {
+      break;
+    }
+    for run in check_runs {
+      let obj = match run.as_object() {
+        Some(o) => o,
+        None => continue,
+      };
+      let conclusion = obj
+        .get("conclusion")
+        .and_then(|c| c.as_str())
+        .map(|s| s.to_string());
+      let status = obj
+        .get("status")
+        .and_then(|s| s.as_str())
+        .unwrap_or("")
+        .to_string();
+      all.push(CheckRunInfo { conclusion, status });
+    }
+    if check_runs.len() < PER_PAGE as usize {
+      break;
+    }
+    page += 1;
+  }
+  Ok(all)
+}
+
+/// Fetch combined commit status for a ref (SPEC_ADDENDUM_2 B.3). Ref can be branch name or SHA.
+pub async fn fetch_commit_status_for_ref(
+  endpoint: &str,
+  api_key: &str,
+  repo: &str,
+  ref_: &str,
+) -> Result<CombinedStatusInfo, TrackerError> {
+  let (owner, repo_name) = parse_repo(repo)?;
+  let api = GitHubApiClient::new(api_key)?;
+
+  let ref_encoded = urlencoding::encode(ref_);
+  let path = format!("/{}/status", ref_encoded);
+  let url = GitHubApiClient::repo_commits_url(endpoint, &owner, &repo_name, &path);
+  let res = api.get(&url).await?;
+
+  if !res.status().is_success() {
+    return Err(TrackerError::GitHubApiStatus(res.status().as_u16()));
+  }
+
+  let body: Value = res
+    .json()
+    .await
+    .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
+
+  let state = body
+    .get("state")
+    .and_then(|s| s.as_str())
+    .unwrap_or("pending")
+    .to_string();
+  Ok(CombinedStatusInfo { state })
+}
+
+/// Fetch issue comments and PR review comments; return true if any contain @{mention_handle} (SPEC_ADDENDUM_2 B.5).
+/// If created_after is Some (ISO8601 string, e.g. PR updated_at), only comments created after that time count (newness rule B.5.1).
+pub async fn fetch_has_qualifying_mention(
+  endpoint: &str,
+  api_key: &str,
+  repo: &str,
+  issue_number: u64,
+  pr_number: u64,
+  mention_handle: &str,
+  created_after: Option<&str>,
+) -> Result<bool, TrackerError> {
+  let (owner, repo_name) = parse_repo(repo)?;
+  let api = GitHubApiClient::new(api_key)?;
+  let needle = format!("@{}", mention_handle.trim_start_matches('@'));
+
+  let check = |body: &str, created_at: &str| -> bool {
+    if !body.contains(&needle) {
+      return false;
+    }
+    if let Some(cutoff) = created_after {
+      if created_at <= cutoff {
+        return false;
+      }
+    }
+    true
+  };
+
+  let issues_path = format!("/{}/comments?per_page={}", issue_number, PER_PAGE);
+  let url = GitHubApiClient::repo_issues_url(endpoint, &owner, &repo_name, &issues_path);
+  let res = api.get(&url).await?;
+  if res.status().is_success() {
+    let body: Vec<Value> = res
+      .json()
+      .await
+      .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
+    for c in &body {
+      if let (Some(b), Some(created)) = (
+        c.get("body").and_then(|v| v.as_str()),
+        c.get("created_at").and_then(|v| v.as_str()),
+      ) {
+        if check(b, created) {
+          return Ok(true);
+        }
+      }
+    }
+  }
+
+  let pr_path = format!("/{}/comments?per_page={}", pr_number, PER_PAGE);
+  let url = GitHubApiClient::repo_pulls_url(endpoint, &owner, &repo_name, &pr_path);
+  let res = api.get(&url).await?;
+  if res.status().is_success() {
+    let body: Vec<Value> = res
+      .json()
+      .await
+      .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
+    for c in &body {
+      if let (Some(b), Some(created)) = (
+        c.get("body").and_then(|v| v.as_str()),
+        c.get("created_at").and_then(|v| v.as_str()),
+      ) {
+        if check(b, created) {
+          return Ok(true);
+        }
+      }
+    }
+  }
+
+  Ok(false)
 }
 
 /// Fetch current state for issues by identifier (e.g. "owner/repo#42").
