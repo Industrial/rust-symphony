@@ -1,6 +1,8 @@
 //! Cursor CLI non-interactive mode: prompt as argument, parse stream-json stdout.
 //! Use when `agent acp` is not available (e.g. NixOS cursor-agent without acp subcommand).
 //! See https://cursor.com/docs/cli/reference/output-format (stream-json).
+//!
+//! This is the **agent runner** for the "Cli" protocol, not the symphony binary's argv.
 
 use std::path::Path;
 use std::time::Duration;

@@ -4,9 +4,9 @@
 //! See `docs/09-agent-runner.md`.
 
 mod acp;
-mod cli;
 mod protocol;
 mod runner;
+mod stream_cli;
 
 pub use protocol::{AgentMessage, parse_line};
 pub use runner::{
@@ -65,7 +65,7 @@ pub async fn run_agent_with_protocol(
       .await
     }
     RunnerProtocol::Cli => {
-      cli::run_agent_cli(
+      stream_cli::run_agent_cli(
         command,
         workspace_path,
         prompt,

@@ -3,10 +3,16 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use crate::ConfigValidationError;
+
+/// Default active issue states when not specified in config.
+static DEFAULT_ACTIVE_STATES: Lazy<Vec<String>> = Lazy::new(|| vec!["open".to_string()]);
+/// Default terminal issue states when not specified in config.
+static DEFAULT_TERMINAL_STATES: Lazy<Vec<String>> = Lazy::new(|| vec!["closed".to_string()]);
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct TrackerConfig {
@@ -48,6 +54,22 @@ impl TrackerConfig {
       }
     }
     if base.is_empty() { None } else { Some(base) }
+  }
+
+  /// Active issue states for candidate fetch; defaults to `["open"]` if not set.
+  pub fn active_states_slice(&self) -> &[String] {
+    self
+      .active_states
+      .as_deref()
+      .unwrap_or_else(|| DEFAULT_ACTIVE_STATES.as_slice())
+  }
+
+  /// Terminal issue states for reconciliation/cleanup; defaults to `["closed"]` if not set.
+  pub fn terminal_states_slice(&self) -> &[String] {
+    self
+      .terminal_states
+      .as_deref()
+      .unwrap_or_else(|| DEFAULT_TERMINAL_STATES.as_slice())
   }
 }
 
@@ -350,5 +372,75 @@ mod tests {
     let eff = t.effective_exclude_labels().unwrap();
     assert_eq!(eff.len(), 2);
     assert_eq!(eff, vec!["a", "claimed"]);
+  }
+
+  #[test]
+  fn active_states_slice_default() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: None,
+      claim_label: None,
+      pr_open_label: None,
+    };
+    assert_eq!(t.active_states_slice(), &["open".to_string()]);
+  }
+
+  #[test]
+  fn active_states_slice_explicit() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: Some(vec!["open".to_string(), "in_progress".to_string()]),
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: None,
+      claim_label: None,
+      pr_open_label: None,
+    };
+    assert_eq!(
+      t.active_states_slice(),
+      &["open".to_string(), "in_progress".to_string()]
+    );
+  }
+
+  #[test]
+  fn terminal_states_slice_default() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: None,
+      include_labels: None,
+      exclude_labels: None,
+      claim_label: None,
+      pr_open_label: None,
+    };
+    assert_eq!(t.terminal_states_slice(), &["closed".to_string()]);
+  }
+
+  #[test]
+  fn terminal_states_slice_explicit() {
+    let t = TrackerConfig {
+      repo: "r".into(),
+      api_key: "k".into(),
+      endpoint: None,
+      active_states: None,
+      terminal_states: Some(vec!["closed".to_string(), "done".to_string()]),
+      include_labels: None,
+      exclude_labels: None,
+      claim_label: None,
+      pr_open_label: None,
+    };
+    assert_eq!(
+      t.terminal_states_slice(),
+      &["closed".to_string(), "done".to_string()]
+    );
   }
 }

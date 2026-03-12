@@ -43,7 +43,7 @@ jobs:
           fi
       - name: Verify version matches Cargo.toml
         run: |
-          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d '"' -f 2)
+          CARGO_VERSION=$(grep '^version = ' crates/symphony-runner/Cargo.toml | head -1 | cut -d '"' -f 2)
           TAG_VERSION="${{ steps.version.outputs.version }}"
 
           echo "📋 Tag version: $TAG_VERSION"
@@ -136,7 +136,7 @@ jobs:
       contents: read
     environment:
       name: crates-io
-      url: https://crates.io/crates/forge
+      url: https://crates.io/crates/symphony-runner
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -185,16 +185,14 @@ jobs:
           {
             echo "📦 **Install the CLI (one-liner):**"
             echo '```bash'
-            echo "curl -fsSL https://raw.githubusercontent.com/Industrial/forge/main/install.sh | sh"
+            echo "curl -fsSL https://raw.githubusercontent.com/Industrial/rust-symphony/main/install.sh | sh"
             echo '```'
             echo ""
-            echo "📦 **Or from crates.io:**"
-            echo '```toml'
-            echo '[dependencies]'
-            echo 'forge = "${{ needs.validate.outputs.version }}"'
-            echo '```'
+            echo "Optional: \`SYMPHONY_VERSION=vX.Y.Z\` to pin version; \`SYMPHONY_INSTALL_DIR=/path\` to set install directory."
             echo ""
-            echo "📚 **Documentation:** [docs.rs/forge](https://docs.rs/forge)"
+            echo "📦 **Or with cargo:** \`cargo install symphony-runner\`"
+            echo ""
+            echo "📚 **Documentation:** See [README](https://github.com/Industrial/rust-symphony#readme)"
           } >> CHANGELOG.md
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -225,8 +223,6 @@ jobs:
             os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -234,12 +230,11 @@ jobs:
       - uses: actions/checkout@v6
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
-          bin: forge
-          package: forge-cli
+          bin: symphony
+          package: symphony-runner
           target: ${{ matrix.target }}
-          archive: forge-${{ github.ref_name }}-${{ matrix.target }}
+          archive: symphony-runner-${{ github.ref_name }}-${{ matrix.target }}
           tar: unix
-          zip: windows
           token: ${{ secrets.GITHUB_TOKEN }}
   # =============================================================================
   # PUBLISH DOCUMENTATION
@@ -286,7 +281,7 @@ jobs:
             exit 1
           fi
 
-          echo "🎉 forge v${{ needs.validate.outputs.version }} released!"
+          echo "🎉 symphony-runner v${{ needs.validate.outputs.version }} released!"
           echo ""
-          echo "📦 crates.io: https://crates.io/crates/forge/${{ needs.validate.outputs.version }}"
-          echo "📚 docs.rs: https://docs.rs/forge/${{ needs.validate.outputs.version }}"
+          echo "📦 Install: curl -fsSL https://raw.githubusercontent.com/Industrial/rust-symphony/main/install.sh | sh"
+          echo "📦 crates.io: https://crates.io/crates/symphony-runner/${{ needs.validate.outputs.version }}"

@@ -30,12 +30,7 @@ pub async fn dry_run_one_poll(
   config: &ServiceConfig,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let max_concurrent = config.agent.max_concurrent_agents;
-  let default_active: Vec<String> = vec!["open".to_string()];
-  let active_states = config
-    .tracker
-    .active_states
-    .as_deref()
-    .unwrap_or_else(|| default_active.as_slice());
+  let active_states = config.tracker.active_states_slice();
   let exclude_labels = config.tracker.effective_exclude_labels();
   let candidates = fetch_candidate_issues(
     &config.tracker.endpoint_or_default(),
@@ -170,62 +165,80 @@ async fn poll_tick(
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
   worker_handles: &mut HashMap<String, WorkerHandle>,
 ) {
-  let max_concurrent = config.agent.max_concurrent_agents;
+  reconcile_running(state, config, tx.clone(), worker_handles).await;
+  terminate_stalled(state, config, now_ms, worker_handles).await;
+  process_due_retries(
+    state,
+    config,
+    prompt_template,
+    now_ms,
+    tx.clone(),
+    worker_handles,
+  )
+  .await;
+  let num_candidates =
+    dispatch_new_candidates(state, config, prompt_template, tx, worker_handles).await;
+  log_tick_summary(state, num_candidates);
+}
 
-  // Reconcile: fetch current state for running issues; terminate if terminal or no longer active.
-  if !state.running.is_empty() {
-    let identifiers: Vec<String> = state
-      .running
-      .values()
-      .map(|e| e.identifier.clone())
-      .collect();
-    let endpoint = config.tracker.endpoint_or_default();
-    let default_active: Vec<String> = vec!["open".to_string()];
-    let default_terminal: Vec<String> = vec!["closed".to_string()];
-    let active = config
-      .tracker
-      .active_states
-      .as_deref()
-      .unwrap_or_else(|| default_active.as_slice());
-    let terminal = config
-      .tracker
-      .terminal_states
-      .as_deref()
-      .unwrap_or_else(|| default_terminal.as_slice());
-    match fetch_issue_states_by_ids(
-      &endpoint,
-      &config.tracker.api_key,
-      &config.tracker.repo,
-      &identifiers,
-    )
-    .await
-    {
-      Ok(issues) => {
-        for issue in issues {
-          let is_terminal = terminal
-            .iter()
-            .any(|s| s.eq_ignore_ascii_case(&issue.state));
-          let is_active = active.iter().any(|s| s.eq_ignore_ascii_case(&issue.state));
-          if is_terminal || !is_active {
-            let _ = tx.send(OrchestratorMessage::TerminateWorker {
-              issue_id: issue.id.clone(),
-              cleanup_workspace: true,
-            });
-            if let Some(h) = worker_handles.remove(&issue.id) {
-              h.abort();
-            }
-            release_claim(state, &issue.id);
-            debug!(%issue.id, state = %issue.state, "reconcile: terminated (terminal or inactive)");
+/// Reconcile: fetch current state for running issues; terminate if terminal or no longer active.
+async fn reconcile_running(
+  state: &mut OrchestratorState,
+  config: &ServiceConfig,
+  tx: mpsc::UnboundedSender<OrchestratorMessage>,
+  worker_handles: &mut HashMap<String, WorkerHandle>,
+) {
+  if state.running.is_empty() {
+    return;
+  }
+  let identifiers: Vec<String> = state
+    .running
+    .values()
+    .map(|e| e.identifier.clone())
+    .collect();
+  let endpoint = config.tracker.endpoint_or_default();
+  let active = config.tracker.active_states_slice();
+  let terminal = config.tracker.terminal_states_slice();
+  match fetch_issue_states_by_ids(
+    &endpoint,
+    &config.tracker.api_key,
+    &config.tracker.repo,
+    &identifiers,
+  )
+  .await
+  {
+    Ok(issues) => {
+      for issue in issues {
+        let is_terminal = terminal
+          .iter()
+          .any(|s| s.eq_ignore_ascii_case(&issue.state));
+        let is_active = active.iter().any(|s| s.eq_ignore_ascii_case(&issue.state));
+        if is_terminal || !is_active {
+          let _ = tx.send(OrchestratorMessage::TerminateWorker {
+            issue_id: issue.id.clone(),
+            cleanup_workspace: true,
+          });
+          if let Some(h) = worker_handles.remove(&issue.id) {
+            h.abort();
           }
+          release_claim(state, &issue.id);
+          debug!(%issue.id, state = %issue.state, "reconcile: terminated (terminal or inactive)");
         }
       }
-      Err(e) => {
-        warn!(%e, "reconcile: fetch issue states failed, skipping this tick");
-      }
+    }
+    Err(e) => {
+      warn!(%e, "reconcile: fetch issue states failed, skipping this tick");
     }
   }
+}
 
-  // Stall detection: terminate running workers that have exceeded stall_timeout_ms since last agent activity.
+/// Terminate running workers that have exceeded stall_timeout_ms since last agent activity.
+async fn terminate_stalled(
+  state: &mut OrchestratorState,
+  config: &ServiceConfig,
+  now_ms: u64,
+  worker_handles: &mut HashMap<String, WorkerHandle>,
+) {
   let stall_timeout_ms = config.runner.stall_timeout_ms();
   let now = chrono::Utc::now();
   let stalled: Vec<String> = state
@@ -267,98 +280,103 @@ async fn poll_tick(
       debug!(%issue_id, "stall: terminated (no agent activity for {}ms)", stall_timeout_ms);
     }
   }
+}
 
-  // 5. Process due retries: fetch current issue state; if still active, re-dispatch; else release claim.
+/// Process due retries: fetch current issue state; if still active, re-dispatch; else release claim.
+async fn process_due_retries(
+  state: &mut OrchestratorState,
+  config: &ServiceConfig,
+  prompt_template: &str,
+  now_ms: u64,
+  tx: mpsc::UnboundedSender<OrchestratorMessage>,
+  worker_handles: &mut HashMap<String, WorkerHandle>,
+) {
+  let max_concurrent = config.agent.max_concurrent_agents;
   let due: Vec<(String, String)> = state
     .retry_attempts
     .iter()
     .filter(|(_, e)| e.due_at_ms <= now_ms)
     .map(|(id, e)| (id.clone(), e.identifier.clone()))
     .collect();
-  if !due.is_empty() {
-    let identifiers: Vec<String> = due.iter().map(|(_, ident)| ident.clone()).collect();
-    let default_active: Vec<String> = vec!["open".to_string()];
-    let default_terminal: Vec<String> = vec!["closed".to_string()];
-    let active = config
-      .tracker
-      .active_states
-      .as_deref()
-      .unwrap_or_else(|| default_active.as_slice());
-    let terminal = config
-      .tracker
-      .terminal_states
-      .as_deref()
-      .unwrap_or_else(|| default_terminal.as_slice());
-    let endpoint = config.tracker.endpoint_or_default();
-    match fetch_issue_states_by_ids(
-      &endpoint,
-      &config.tracker.api_key,
-      &config.tracker.repo,
-      &identifiers,
-    )
-    .await
-    {
-      Ok(issues) => {
-        let fetched: std::collections::HashMap<String, symphony_domain::Issue> = issues
-          .into_iter()
-          .map(|i| (i.identifier.clone(), i))
-          .collect();
-        let retry_exclude_labels = config.tracker.effective_exclude_labels();
-        for (issue_id, identifier) in due {
-          state.retry_attempts.remove(&issue_id);
-          if let Some(issue) = fetched.get(&identifier) {
-            let is_active = active.iter().any(|s| s.eq_ignore_ascii_case(&issue.state));
-            let is_terminal = terminal
-              .iter()
-              .any(|s| s.eq_ignore_ascii_case(&issue.state));
-            let label_eligible = issue_passes_label_filters(
+  if due.is_empty() {
+    return;
+  }
+  let identifiers: Vec<String> = due.iter().map(|(_, ident)| ident.clone()).collect();
+  let endpoint = config.tracker.endpoint_or_default();
+  match fetch_issue_states_by_ids(
+    &endpoint,
+    &config.tracker.api_key,
+    &config.tracker.repo,
+    &identifiers,
+  )
+  .await
+  {
+    Ok(issues) => {
+      let fetched: std::collections::HashMap<String, symphony_domain::Issue> = issues
+        .into_iter()
+        .map(|i| (i.identifier.clone(), i))
+        .collect();
+      let active = config.tracker.active_states_slice();
+      let terminal = config.tracker.terminal_states_slice();
+      let retry_exclude_labels = config.tracker.effective_exclude_labels();
+      for (issue_id, identifier) in due {
+        state.retry_attempts.remove(&issue_id);
+        if let Some(issue) = fetched.get(&identifier) {
+          let is_active = active.iter().any(|s| s.eq_ignore_ascii_case(&issue.state));
+          let is_terminal = terminal
+            .iter()
+            .any(|s| s.eq_ignore_ascii_case(&issue.state));
+          let label_eligible = issue_passes_label_filters(
+            issue,
+            config.tracker.include_labels.as_deref(),
+            retry_exclude_labels.as_deref(),
+          );
+          if is_active
+            && !is_terminal
+            && label_eligible
+            && !state.running.contains_key(&issue_id)
+            && available_slots(state, max_concurrent) > 0
+          {
+            dispatch_worker(
+              state,
               issue,
-              config.tracker.include_labels.as_deref(),
-              retry_exclude_labels.as_deref(),
-            );
-            if is_active
-              && !is_terminal
-              && label_eligible
-              && !state.running.contains_key(&issue_id)
-              && available_slots(state, max_concurrent) > 0
-            {
-              dispatch_worker(
-                state,
-                issue,
-                prompt_template,
-                config,
-                tx.clone(),
-                worker_handles,
-              )
-              .await;
-              debug!(%issue_id, "due retry: re-dispatched");
-            } else {
-              release_claim(state, &issue_id);
-              debug!(%issue_id, "due retry: no longer eligible, released");
-            }
+              prompt_template,
+              config,
+              tx.clone(),
+              worker_handles,
+            )
+            .await;
+            debug!(%issue_id, "due retry: re-dispatched");
           } else {
             release_claim(state, &issue_id);
-            debug!(%issue_id, "due retry: fetch missed, released");
+            debug!(%issue_id, "due retry: no longer eligible, released");
           }
-        }
-      }
-      Err(e) => {
-        warn!(%e, "due retry: fetch failed, releasing all due");
-        for (issue_id, _) in due {
-          state.retry_attempts.remove(&issue_id);
+        } else {
           release_claim(state, &issue_id);
+          debug!(%issue_id, "due retry: fetch missed, released");
         }
       }
     }
+    Err(e) => {
+      warn!(%e, "due retry: fetch failed, releasing all due");
+      for (issue_id, _) in due {
+        state.retry_attempts.remove(&issue_id);
+        release_claim(state, &issue_id);
+      }
+    }
   }
+}
 
-  // 6. Dispatch new: fetch candidates from tracker, sort, for each eligible and slot dispatch.
-  let default_active: Vec<String> = vec!["open".to_string()];
-  let active_states = config
-    .tracker
-    .active_states
-    .as_deref()
-    .unwrap_or_else(|| default_active.as_slice());
+/// Dispatch new candidates: fetch from tracker, sort, dispatch up to concurrency limit. Returns candidate count.
+async fn dispatch_new_candidates(
+  state: &mut OrchestratorState,
+  config: &ServiceConfig,
+  prompt_template: &str,
+  tx: mpsc::UnboundedSender<OrchestratorMessage>,
+  worker_handles: &mut HashMap<String, WorkerHandle>,
+) -> usize {
+  let max_concurrent = config.agent.max_concurrent_agents;
+  let active_states = config.tracker.active_states_slice();
   let exclude_labels = config.tracker.effective_exclude_labels();
   let candidates = match fetch_candidate_issues(
     &config.tracker.endpoint_or_default(),
@@ -373,17 +391,15 @@ async fn poll_tick(
     Ok(c) => c,
     Err(e) => {
       warn!(%e, "fetch candidates failed, skipping this tick");
-      vec![]
+      return 0;
     }
   };
   let mut sorted = candidates;
   symphony_orchestration::sort_for_dispatch(&mut sorted);
   let num_candidates = sorted.len();
-
   if num_candidates > 0 {
     info!(candidates = num_candidates, "fetched candidates");
   }
-
   for issue in sorted {
     if !can_dispatch(state, &issue.id, max_concurrent) {
       break;
@@ -398,17 +414,139 @@ async fn poll_tick(
     )
     .await;
   }
+  num_candidates
+}
 
-  // 7. Notify (log summary)
+/// Log tick summary (running count, retry count, or "no work yet").
+pub(crate) fn log_tick_summary(state: &OrchestratorState, num_candidates: usize) {
   if !state.running.is_empty() || !state.retry_attempts.is_empty() {
     info!(
       running = state.running.len(),
       retry_queued = state.retry_attempts.len(),
       "tick"
     );
-  } else if state.running.is_empty() && state.retry_attempts.is_empty() {
+  } else {
     info!(candidates = num_candidates, "poll tick (no work yet)");
   }
+}
+
+/// Forward agent runner updates to the orchestrator channel.
+async fn forward_agent_updates(
+  mut update_rx: tokio::sync::mpsc::UnboundedReceiver<AgentRunnerUpdate>,
+  issue_id: String,
+  tx: mpsc::UnboundedSender<OrchestratorMessage>,
+) {
+  while let Some(u) = update_rx.recv().await {
+    let payload = AgentUpdatePayload {
+      session_id: u.session_id,
+      thread_id: u.thread_id,
+      turn_id: u.turn_id,
+      input_tokens: u.input_tokens,
+      output_tokens: u.output_tokens,
+      total_tokens: u.total_tokens,
+      turn_count: u.turn_count,
+    };
+    let _ = tx.send(OrchestratorMessage::AgentUpdate {
+      issue_id: issue_id.clone(),
+      update: payload,
+    });
+  }
+}
+
+/// Run one worker to completion: ensure workspace, hooks, render prompt, run agent, send WorkerExit.
+async fn run_worker_to_completion(
+  config: ServiceConfig,
+  prompt_template: String,
+  issue_id: String,
+  identifier: String,
+  issue: Issue,
+  retry_attempt: u32,
+  tx: mpsc::UnboundedSender<OrchestratorMessage>,
+) {
+  let (path, created) = match ensure_workspace_dir(&config.workspace.root, &identifier).await {
+    Ok(p) => p,
+    Err(e) => {
+      warn!(%issue_id, %e, "ensure workspace failed");
+      release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
+      return;
+    }
+  };
+
+  if created {
+    if let Some(ref script) = config.hooks.after_create {
+      if let Err(e) = run_hook(script, &path, config.hooks.timeout_ms()).await {
+        warn!(%issue_id, %e, "after_create hook failed");
+      }
+    }
+  }
+
+  if let Some(ref script) = config.hooks.before_run {
+    if let Err(e) = run_hook(script, &path, config.hooks.timeout_ms()).await {
+      warn!(%issue_id, %e, "before_run hook failed");
+      release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
+      return;
+    }
+  }
+
+  let prompt = match render_prompt(&prompt_template, &issue, Some(retry_attempt)) {
+    Ok(p) => p,
+    Err(e) => {
+      warn!(%issue_id, %e, "render prompt failed");
+      release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
+      return;
+    }
+  };
+
+  let turn_timeout_ms = config.runner.turn_timeout_ms();
+  let read_timeout_ms = config.runner.read_timeout_ms();
+  let (update_tx, update_rx) = tokio::sync::mpsc::unbounded_channel::<AgentRunnerUpdate>();
+  tokio::spawn(forward_agent_updates(
+    update_rx,
+    issue_id.clone(),
+    tx.clone(),
+  ));
+
+  let protocol = match config.runner.runner_type {
+    RunnerType::Codex => RunnerProtocol::Codex,
+    RunnerType::Acp => RunnerProtocol::Acp,
+    RunnerType::Cli => RunnerProtocol::Cli,
+  };
+  let outcome = run_agent_with_protocol(
+    protocol,
+    &config.runner.command,
+    &path,
+    &prompt,
+    &identifier,
+    &issue.title,
+    turn_timeout_ms,
+    read_timeout_ms,
+    Some(update_tx),
+  )
+  .await;
+
+  let (reason, runtime_seconds, token_totals) = match outcome {
+    Ok(out) => (
+      match out.exit_reason {
+        AgentExitReason::Normal => WorkerExitReason::Normal,
+        AgentExitReason::TurnTimeout | AgentExitReason::ResponseTimeout => {
+          WorkerExitReason::TimedOut
+        }
+        AgentExitReason::TurnFailed => WorkerExitReason::Failed("turn failed".into()),
+        AgentExitReason::ProcessError(ref s) => WorkerExitReason::Failed(s.clone()),
+        AgentExitReason::TurnCancelled => WorkerExitReason::CanceledByReconciliation,
+      },
+      out.runtime_seconds,
+      out.token_totals,
+    ),
+    Err(e) => (WorkerExitReason::Failed(e.to_string()), 0.0, (0, 0, 0)),
+  };
+
+  let _ = tx.send(OrchestratorMessage::WorkerExit {
+    issue_id,
+    reason,
+    runtime_seconds,
+    token_totals,
+  });
 }
 
 /// Spawn a worker: ensure workspace, run hooks, render prompt, launch agent; send AgentUpdate/WorkerExit.
@@ -441,125 +579,17 @@ async fn dispatch_worker(
 
   let config = config.clone();
   let prompt_template = prompt_template.to_string();
-  let issue_id_for_worker = issue_id.clone();
   let issue_clone = issue.clone();
-  let tx_worker = tx.clone();
 
-  let handle = tokio::spawn(async move {
-    let (path, created) = match ensure_workspace_dir(&config.workspace.root, &identifier).await {
-      Ok(p) => p,
-      Err(e) => {
-        warn!(%issue_id_for_worker, %e, "ensure workspace failed");
-        release_claim_and_send_exit(
-          &tx_worker,
-          &issue_id_for_worker,
-          WorkerExitReason::Failed(e.to_string()),
-          0.0,
-        );
-        return;
-      }
-    };
-
-    if created {
-      if let Some(ref script) = config.hooks.after_create {
-        if let Err(e) = run_hook(script, &path, config.hooks.timeout_ms()).await {
-          warn!(%issue_id_for_worker, %e, "after_create hook failed");
-        }
-      }
-    }
-
-    if let Some(ref script) = config.hooks.before_run {
-      if let Err(e) = run_hook(script, &path, config.hooks.timeout_ms()).await {
-        warn!(%issue_id_for_worker, %e, "before_run hook failed");
-        release_claim_and_send_exit(
-          &tx_worker,
-          &issue_id_for_worker,
-          WorkerExitReason::Failed(e.to_string()),
-          0.0,
-        );
-        return;
-      }
-    }
-
-    let prompt = match render_prompt(&prompt_template, &issue_clone, Some(retry_attempt)) {
-      Ok(p) => p,
-      Err(e) => {
-        warn!(%issue_id_for_worker, %e, "render prompt failed");
-        release_claim_and_send_exit(
-          &tx_worker,
-          &issue_id_for_worker,
-          WorkerExitReason::Failed(e.to_string()),
-          0.0,
-        );
-        return;
-      }
-    };
-
-    let turn_timeout_ms = config.runner.turn_timeout_ms();
-    let read_timeout_ms = config.runner.read_timeout_ms();
-    let (update_tx, mut update_rx) = tokio::sync::mpsc::unbounded_channel::<AgentRunnerUpdate>();
-    let tx_updates = tx_worker.clone();
-    let issue_id_updates = issue_id_for_worker.clone();
-    tokio::spawn(async move {
-      while let Some(u) = update_rx.recv().await {
-        let payload = AgentUpdatePayload {
-          session_id: u.session_id,
-          thread_id: u.thread_id,
-          turn_id: u.turn_id,
-          input_tokens: u.input_tokens,
-          output_tokens: u.output_tokens,
-          total_tokens: u.total_tokens,
-          turn_count: u.turn_count,
-        };
-        let _ = tx_updates.send(OrchestratorMessage::AgentUpdate {
-          issue_id: issue_id_updates.clone(),
-          update: payload,
-        });
-      }
-    });
-
-    let protocol = match config.runner.runner_type {
-      RunnerType::Codex => RunnerProtocol::Codex,
-      RunnerType::Acp => RunnerProtocol::Acp,
-      RunnerType::Cli => RunnerProtocol::Cli,
-    };
-    let outcome = run_agent_with_protocol(
-      protocol,
-      &config.runner.command,
-      &path,
-      &prompt,
-      &identifier,
-      &issue_clone.title,
-      turn_timeout_ms,
-      read_timeout_ms,
-      Some(update_tx),
-    )
-    .await;
-
-    let (reason, runtime_seconds, token_totals) = match outcome {
-      Ok(out) => (
-        match out.exit_reason {
-          AgentExitReason::Normal => WorkerExitReason::Normal,
-          AgentExitReason::TurnTimeout | AgentExitReason::ResponseTimeout => {
-            WorkerExitReason::TimedOut
-          }
-          AgentExitReason::TurnFailed => WorkerExitReason::Failed("turn failed".into()),
-          AgentExitReason::ProcessError(ref s) => WorkerExitReason::Failed(s.clone()),
-          AgentExitReason::TurnCancelled => WorkerExitReason::CanceledByReconciliation,
-        },
-        out.runtime_seconds,
-        out.token_totals,
-      ),
-      Err(e) => (WorkerExitReason::Failed(e.to_string()), 0.0, (0, 0, 0)),
-    };
-
-    let _ = tx_worker.send(OrchestratorMessage::WorkerExit {
-      issue_id: issue_id_for_worker,
-      reason,
-      runtime_seconds,
-      token_totals,
-    });
-  });
+  let handle = tokio::spawn(run_worker_to_completion(
+    config,
+    prompt_template,
+    issue_id.clone(),
+    identifier,
+    issue_clone,
+    retry_attempt,
+    tx,
+  ));
 
   worker_handles.insert(issue_id.clone(), handle);
   debug!(%issue_id, "dispatched");
@@ -589,7 +619,9 @@ mod tests {
   use symphony_orchestration::OrchestratorMessage;
   use tokio::sync::{RwLock, mpsc};
 
-  use super::run_orchestrator;
+  use symphony_domain::RunningEntry;
+
+  use super::{log_tick_summary, run_orchestrator};
 
   fn test_config() -> ServiceConfig {
     ServiceConfig {
@@ -663,5 +695,51 @@ mod tests {
       None,
     )
     .await;
+  }
+
+  #[test]
+  fn log_tick_summary_empty_state() {
+    let state = OrchestratorState::default();
+    log_tick_summary(&state, 0);
+    log_tick_summary(&state, 5);
+  }
+
+  #[test]
+  fn log_tick_summary_with_running_and_retry() {
+    let mut state = OrchestratorState::default();
+    state.running.insert(
+      "1".into(),
+      RunningEntry {
+        identifier: "o/r#1".into(),
+        issue: symphony_domain::Issue {
+          id: "1".into(),
+          identifier: "o/r#1".into(),
+          title: "t".into(),
+          description: None,
+          priority: None,
+          state: "open".into(),
+          branch_name: None,
+          url: None,
+          labels: vec![],
+          blocked_by: vec![],
+          created_at: None,
+          updated_at: None,
+        },
+        session: symphony_domain::LiveSession::default(),
+        started_at: chrono::Utc::now(),
+        retry_attempt: 0,
+      },
+    );
+    state.retry_attempts.insert(
+      "2".into(),
+      symphony_domain::RetryEntry {
+        issue_id: "2".into(),
+        identifier: "o/r#2".into(),
+        attempt: 1,
+        due_at_ms: 0,
+        error: None,
+      },
+    );
+    log_tick_summary(&state, 10);
   }
 }

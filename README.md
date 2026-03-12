@@ -30,6 +30,18 @@ Symphony is a **scheduler/runner and tracker reader**. Ticket writes (state tran
 
 ## Quick Start
 
+### Install the CLI (no Rust required)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Industrial/rust-symphony/main/install.sh | sh
+```
+
+Optional: set `SYMPHONY_VERSION=vX.Y.Z` to pin a release, or `SYMPHONY_INSTALL_DIR=/path` to choose the install directory (default: `~/.local/bin`, or `/usr/local/bin` when run as root). Add the install directory to your `PATH` if needed.
+
+Alternatively, with a Rust toolchain: `cargo install symphony-runner`.
+
+### Development
+
 **Prerequisites:** Rust toolchain, [devenv](https://devenv.sh/) 2.x for the development environment.
 
 ```bash
