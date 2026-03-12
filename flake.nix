@@ -47,13 +47,13 @@
           cargoLock.lockFile = self + "/Cargo.lock";
           nativeBuildInputs = [pkgs.pkg-config];
           buildInputs = [pkgs.openssl];
-          cargoBuildFlags = ["--bin" "symphony-agent"];
+          cargoBuildFlags = ["--package" "symphony-runner" "--bin" "symphony"];
           installPhase = ''
             runHook preInstall
-            # Build the rust-symphony binary from the symphony-agent crate
-            cargo build --release --bin symphony-agent
+            # Build the CLI binary from symphony-runner (bin name: symphony)
+            cargo build --release --package symphony-runner --bin symphony
             mkdir -p $out/bin
-            cp target/release/symphony-agent $out/bin/rust-symphony
+            cp target/release/symphony $out/bin/rust-symphony
             runHook postInstall
           '';
         };
