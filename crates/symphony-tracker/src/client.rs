@@ -30,7 +30,11 @@ pub struct ResolvedPr {
   pub pr_updated_at: Option<String>,
 }
 
-/// One check run from the Checks API (SPEC_ADDENDUM_2 B.3). Used to determine if any check failed.
+// SPEC_ADDENDUM_2 B.6 — Definition of "checks": Check Runs (GitHub Actions, third-party) and
+// legacy Commit Statuses for the PR head commit. **Failed:** at least one has conclusion/state
+// indicating failure. **Pending/in progress:** not yet completed. **All passed:** all success; orchestrator waits unless there is a qualifying mention. See check_run_conclusion_is_failed and commit_status_state_is_failed for the exact mapping.
+
+/// One check run from the Checks API (SPEC_ADDENDUM_2 B.3, B.6). Used to determine if any check failed.
 #[derive(Debug, Clone)]
 pub struct CheckRunInfo {
   /// Conclusion when status is "completed": failure, success, cancelled, etc.
@@ -39,7 +43,7 @@ pub struct CheckRunInfo {
   pub status: String,
 }
 
-/// Combined commit status from the commit status API (SPEC_ADDENDUM_2 B.3).
+/// Combined commit status from the commit status API (SPEC_ADDENDUM_2 B.3, B.6).
 #[derive(Debug, Clone)]
 pub struct CombinedStatusInfo {
   /// Combined state: failure, pending, success.
