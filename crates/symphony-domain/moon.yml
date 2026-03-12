@@ -16,9 +16,9 @@ tasks:
       cache: true
       outputStyle: buffer-only-failure
   test:
-    description: 'Run cargo test for the crate'
+    description: 'Run cargo nextest for the crate'
     command: 'cargo'
-    args: ['test']
+    args: ['nextest', 'run']
     deps: ['check']
     inputs:
       - 'Cargo.toml'

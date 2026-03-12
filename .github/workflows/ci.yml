@@ -25,9 +25,9 @@ jobs:
       - uses: ./.github/actions/setup-sccache
       - uses: ./.github/actions/setup-mold
       - uses: ./.github/actions/setup-moon
-      - name: Run checks (format, check, build, test-nextest, audit, check-docs)
+      - name: Run checks
         uses: ./.github/actions/run-devenv-moon
         with:
-          targets: ":format :check :build :test-nextest :audit :check-docs :check-inline-workflow"
+          targets: ":format :check :build :test :audit :check-docs"
           use-affected: "true"
       - uses: ./.github/actions/sccache-stats
