@@ -93,12 +93,16 @@ pub async fn ensure_worktree_dir(
     .await
     .map_err(|_| WorkspaceError::MainRepoNotFound(main_repo_path.to_path_buf()))?;
   if !main_meta.is_dir() {
-    return Err(WorkspaceError::MainRepoNotFound(main_repo_path.to_path_buf()));
+    return Err(WorkspaceError::MainRepoNotFound(
+      main_repo_path.to_path_buf(),
+    ));
   }
   let git_dir = main_repo_path.join(".git");
   let git_exists = tokio::fs::metadata(&git_dir).await.is_ok();
   if !git_exists {
-    return Err(WorkspaceError::MainRepoNotFound(main_repo_path.to_path_buf()));
+    return Err(WorkspaceError::MainRepoNotFound(
+      main_repo_path.to_path_buf(),
+    ));
   }
   let path_str = path.to_string_lossy();
   let output = Command::new("git")
@@ -209,7 +213,9 @@ mod tests {
       .output()
       .await
       .unwrap();
-    let branch = String::from_utf8_lossy(&branch_out.stdout).trim().to_string();
+    let branch = String::from_utf8_lossy(&branch_out.stdout)
+      .trim()
+      .to_string();
     assert_eq!(branch, "symphony/issue-42");
     let _ = tokio::fs::remove_dir_all(&root).await;
   }
@@ -220,12 +226,19 @@ mod tests {
     let _ = tokio::fs::remove_dir_all(&root).await;
     let main_repo = root.join("main");
     tokio::fs::create_dir_all(&main_repo).await.unwrap();
-    Command::new("git").args(["init"]).current_dir(&main_repo).output().await.unwrap();
-    let (path1, created1) =
-      ensure_worktree_dir(&root, "o/r#1", &main_repo, "symphony/issue-1").await.unwrap();
+    Command::new("git")
+      .args(["init"])
+      .current_dir(&main_repo)
+      .output()
+      .await
+      .unwrap();
+    let (path1, created1) = ensure_worktree_dir(&root, "o/r#1", &main_repo, "symphony/issue-1")
+      .await
+      .unwrap();
     assert!(created1);
-    let (path2, created2) =
-      ensure_worktree_dir(&root, "o/r#1", &main_repo, "symphony/issue-1").await.unwrap();
+    let (path2, created2) = ensure_worktree_dir(&root, "o/r#1", &main_repo, "symphony/issue-1")
+      .await
+      .unwrap();
     assert!(!created2);
     assert_eq!(path1, path2);
     assert!(is_git_worktree(&path1));

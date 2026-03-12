@@ -25,7 +25,7 @@ use symphony_tracker::{
   fetch_has_qualifying_mention, fetch_issue_states_by_ids, fetch_issues_with_label,
   issue_passes_label_filters, parse_issue_number, resolve_pr_for_issue,
 };
-use symphony_workspace::{ensure_worktree_dir, ensure_workspace_dir, run_hook};
+use symphony_workspace::{ensure_workspace_dir, ensure_worktree_dir, run_hook};
 
 /// One poll cycle in dry-run: fetch candidates, sort, apply concurrency; log what would be dispatched; no workers or tracker writes.
 pub async fn dry_run_one_poll(
@@ -597,10 +597,7 @@ async fn forward_agent_updates(
 fn worktree_branch_name(identifier: &str) -> String {
   match parse_issue_number(identifier) {
     Some(n) => format!("symphony/issue-{}", n),
-    None => format!(
-      "symphony/issue-{}",
-      identifier.replace(['/', '#'], "_")
-    ),
+    None => format!("symphony/issue-{}", identifier.replace(['/', '#'], "_")),
   }
 }
 
@@ -617,23 +614,11 @@ async fn run_worker_to_completion(
   let (path, created) = match config.workspace.main_repo_path.as_ref() {
     Some(main_repo) => {
       let branch = worktree_branch_name(&identifier);
-      match ensure_worktree_dir(
-        &config.workspace.root,
-        &identifier,
-        main_repo,
-        &branch,
-      )
-      .await
-      {
+      match ensure_worktree_dir(&config.workspace.root, &identifier, main_repo, &branch).await {
         Ok(p) => p,
         Err(e) => {
           warn!(%issue_id, %e, "ensure worktree failed");
-          release_claim_and_send_exit(
-            &tx,
-            &issue_id,
-            WorkerExitReason::Failed(e.to_string()),
-            0.0,
-          );
+          release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
           return;
         }
       }
@@ -642,12 +627,7 @@ async fn run_worker_to_completion(
       Ok(p) => p,
       Err(e) => {
         warn!(%issue_id, %e, "ensure workspace failed");
-        release_claim_and_send_exit(
-          &tx,
-          &issue_id,
-          WorkerExitReason::Failed(e.to_string()),
-          0.0,
-        );
+        release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
         return;
       }
     },
@@ -983,7 +963,10 @@ mod tests {
     let msg = rx.recv().await.expect("WorkerExit");
     match &msg {
       OrchestratorMessage::WorkerExit { reason, .. } => {
-        assert!(matches!(reason, symphony_orchestration::WorkerExitReason::Normal));
+        assert!(matches!(
+          reason,
+          symphony_orchestration::WorkerExitReason::Normal
+        ));
       }
       _ => panic!("expected WorkerExit"),
     }
