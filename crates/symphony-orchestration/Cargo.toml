@@ -1,6 +1,6 @@
 [package]
 name = "symphony-orchestration"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "Orchestrator messages and claim state (SPEC §7)"
 license = "CC-BY-SA-4.0"

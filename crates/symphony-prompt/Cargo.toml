@@ -1,6 +1,6 @@
 [package]
 name = "symphony-prompt"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "Prompt construction with Liquid templating (SPEC §12)"
 license = "CC-BY-SA-4.0"
