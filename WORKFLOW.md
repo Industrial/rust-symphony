@@ -3,6 +3,8 @@
 # Set GITHUB_TOKEN in the environment; workflow resolves $GITHUB_TOKEN at runtime.
 # Token: for orchestrator-only, Issues: Read-only (or classic public_repo/repo). For PR-driven workflow the agent needs write: Issues, Pull requests, Contents. See docs/SPEC/10-github-tracker.md.
 # Addendum 1 (docs/SPEC_ADDENDUM_1.md): include_labels / exclude_labels filter candidates; claim_label is auto-excluded so the agent can "claim" an issue; pr_open_label optional for PR-driven flow.
+# Addendum 2 (docs/SPEC_ADDENDUM_2.md): fix_pr re-dispatches the agent when the PR has failing checks or when someone mentions the configured handle (e.g. @symphony).
+fix_pr: true
 tracker:
   repo: "Industrial/rust-symphony"
   api_key: "$GITHUB_TOKEN"
@@ -12,6 +14,7 @@ tracker:
   exclude_labels: ["symphony-claimed", "wip"]
   claim_label: "symphony-claimed"
   pr_open_label: "pr-open"
+  mention_handle: "symphony"
 
 # Command to run the coding agent in each workspace (required).
 # Change this to use a different agent; it is run with cwd = per-issue workspace.

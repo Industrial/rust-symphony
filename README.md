@@ -64,7 +64,9 @@ devenv shell -- cargo run -p symphony-runner -- --dry-run /path/to/WORKFLOW.md
 ## Documentation
 
 - **Specification:** [docs/SPEC.md](docs/SPEC.md) — language-agnostic Symphony service spec.
-- **Rust implementation notes:** `docs/01-problem-and-goals.md` through `docs/17-implementation-checklist.md` — problem statement, domain model, workflow, config, orchestration, polling, workspace, agent runner, tracker, prompt construction, logging, failure recovery, security, reference algorithms, testing, checklist.
+- **Addendum 1:** [docs/SPEC_ADDENDUM_1.md](docs/SPEC_ADDENDUM_1.md) — label filtering, durable claim, PR-driven workflow.
+- **Addendum 2:** [docs/SPEC_ADDENDUM_2.md](docs/SPEC_ADDENDUM_2.md) — fix-PR: re-dispatch when checks fail or when someone mentions the bot (e.g. `@symphony`). Top-level **`fix_pr`** in workflow front matter (default: `false`) opts in; when `true`, the orchestrator applies fix-PR logic for issues with `pr_open_label`. When `false` or omitted, no check-status or mention polling occurs. This repo sets `fix_pr: true` in `WORKFLOW.md`.
+- **Rust implementation notes:** `docs/SPEC/` — problem statement, domain model, workflow, config, orchestration, polling, workspace, agent runner, tracker, prompt construction, logging, failure recovery, security, reference algorithms, testing, checklist.
 
 ## Development
 
@@ -87,6 +89,7 @@ See [LICENSE](LICENSE) for terms applicable to this repository.
 # Set GITHUB_TOKEN in the environment; workflow resolves $GITHUB_TOKEN at runtime.
 # Token needs read access to Issues only: fine-grained "Issues: Read-only", or classic "public_repo" (public) / "repo" (private). See docs/10-github-tracker.md.
 # Addendum 1 (docs/SPEC_ADDENDUM_1.md): include_labels / exclude_labels filter candidates; claim_label is auto-excluded so the agent can "claim" an issue; pr_open_label optional for PR-driven flow.
+# Addendum 2 (docs/SPEC_ADDENDUM_2.md): fix_pr (optional, default false) enables fix-PR re-dispatch for issues with pr_open_label when checks fail or the bot is mentioned.
 tracker:
   repo: "Industrial/rust-symphony"
   api_key: "$GITHUB_TOKEN"

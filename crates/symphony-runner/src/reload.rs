@@ -68,6 +68,7 @@ mod tests {
 
   fn minimal_config() -> ServiceConfig {
     ServiceConfig {
+      fix_pr: false,
       tracker: symphony_config::TrackerConfig {
         repo: "owner/repo".into(),
         api_key: "key".into(),
