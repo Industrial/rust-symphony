@@ -26,7 +26,6 @@ alwaysApply: true
 3. Work on it: Implement, test, document
 4. Discover new work? Create linked issue: `devenv shell -- bd create "Found bug" -p 1 --deps discovered-from:<parent-id> --json`
 5. Complete: `devenv shell -- bd close <id> --reason "Done" --json`
-6. Commit together: Always commit the `.beads/issues.jsonl` file together with the code changes.
 
 ### Quick Start (all commands via devenv shell)
 
