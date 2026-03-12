@@ -34,6 +34,9 @@ pub struct TrackerConfig {
   pub claim_label: Option<String>,
   /// SPEC_ADDENDUM_1 A.3.6: optional label the agent may add when a PR is open; should be in exclude_labels if used.
   pub pr_open_label: Option<String>,
+  /// SPEC_ADDENDUM_2 B.2: branch name pattern for issue→PR resolution; "{number}" is replaced by issue number (e.g. "symphony/issue-{number}").
+  /// When None and fix_pr is used, the default is "symphony/issue-{number}".
+  pub fix_pr_head_branch_pattern: Option<String>,
 }
 
 impl TrackerConfig {
@@ -216,6 +219,7 @@ mod tests {
         exclude_labels: None,
         claim_label: None,
         pr_open_label: None,
+        fix_pr_head_branch_pattern: None,
       },
       runner: RunnerConfig {
         command: "codex app-server".into(),
@@ -302,6 +306,7 @@ mod tests {
       exclude_labels: None,
       claim_label: None,
       pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
     };
     assert!(t.effective_exclude_labels().is_none());
   }
@@ -318,6 +323,7 @@ mod tests {
       exclude_labels: Some(vec!["a".into(), "b".into()]),
       claim_label: None,
       pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
     };
     assert_eq!(
       t.effective_exclude_labels(),
@@ -337,6 +343,7 @@ mod tests {
       exclude_labels: Some(vec!["a".into()]),
       claim_label: Some("symphony-claimed".into()),
       pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
     };
     let eff = t.effective_exclude_labels().unwrap();
     assert_eq!(eff.len(), 2);
@@ -356,6 +363,7 @@ mod tests {
       exclude_labels: None,
       claim_label: Some("claimed".into()),
       pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
     };
     assert_eq!(t.effective_exclude_labels(), Some(vec!["claimed".into()]));
   }
@@ -372,6 +380,7 @@ mod tests {
       exclude_labels: Some(vec!["a".into(), "claimed".into()]),
       claim_label: Some("claimed".into()),
       pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
     };
     let eff = t.effective_exclude_labels().unwrap();
     assert_eq!(eff.len(), 2);
@@ -390,6 +399,7 @@ mod tests {
       exclude_labels: None,
       claim_label: None,
       pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
     };
     assert_eq!(t.active_states_slice(), &["open".to_string()]);
   }
@@ -406,6 +416,7 @@ mod tests {
       exclude_labels: None,
       claim_label: None,
       pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
     };
     assert_eq!(
       t.active_states_slice(),
@@ -425,6 +436,7 @@ mod tests {
       exclude_labels: None,
       claim_label: None,
       pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
     };
     assert_eq!(t.terminal_states_slice(), &["closed".to_string()]);
   }
@@ -441,6 +453,7 @@ mod tests {
       exclude_labels: None,
       claim_label: None,
       pr_open_label: None,
+      fix_pr_head_branch_pattern: None,
     };
     assert_eq!(
       t.terminal_states_slice(),

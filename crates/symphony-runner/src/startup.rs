@@ -56,6 +56,7 @@ mod tests {
         exclude_labels: None,
         claim_label: None,
         pr_open_label: None,
+        fix_pr_head_branch_pattern: None,
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),

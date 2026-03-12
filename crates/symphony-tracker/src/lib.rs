@@ -15,6 +15,6 @@ pub use normalize::github_issue_to_domain;
 
 #[cfg(feature = "client")]
 pub use client::{
-  fetch_candidate_issues, fetch_issue_states_by_ids, fetch_issues_by_states, parse_issue_number,
-  parse_repo,
+  ResolvedPr, fetch_candidate_issues, fetch_issue_states_by_ids, fetch_issues_by_states,
+  fetch_issues_with_label, parse_issue_number, parse_repo, resolve_pr_for_issue,
 };

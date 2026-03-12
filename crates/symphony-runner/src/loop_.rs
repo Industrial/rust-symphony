@@ -21,7 +21,8 @@ use symphony_orchestration::{
 };
 use symphony_prompt::render_prompt;
 use symphony_tracker::{
-  fetch_candidate_issues, fetch_issue_states_by_ids, issue_passes_label_filters,
+  fetch_candidate_issues, fetch_issue_states_by_ids, fetch_issues_with_label,
+  issue_passes_label_filters, parse_issue_number, resolve_pr_for_issue,
 };
 use symphony_workspace::{ensure_workspace_dir, run_hook};
 
@@ -369,7 +370,7 @@ async fn process_due_retries(
   }
 }
 
-/// Dispatch new candidates: fetch from tracker, sort, dispatch up to concurrency limit. Returns candidate count.
+/// Dispatch new candidates: fix-PR candidates (when fix_pr) then normal candidates; sort, dispatch up to concurrency. Returns candidate count.
 async fn dispatch_new_candidates(
   state: &mut OrchestratorState,
   config: &ServiceConfig,
@@ -379,6 +380,77 @@ async fn dispatch_new_candidates(
 ) -> usize {
   let max_concurrent = config.agent.max_concurrent_agents;
   let active_states = config.tracker.active_states_slice();
+  let mut total_candidates = 0usize;
+
+  if config.fix_pr {
+    if let Some(ref pr_open_label) = config.tracker.pr_open_label {
+      let head_pattern = config
+        .tracker
+        .fix_pr_head_branch_pattern
+        .as_deref()
+        .unwrap_or("symphony/issue-{number}");
+      match fetch_issues_with_label(
+        &config.tracker.endpoint_or_default(),
+        &config.tracker.api_key,
+        &config.tracker.repo,
+        pr_open_label,
+        active_states,
+      )
+      .await
+      {
+        Ok(fix_pr_issues) => {
+          let fix_pr_candidates: Vec<_> = fix_pr_issues
+            .into_iter()
+            .filter(|issue| !state.running.contains_key(&issue.id))
+            .collect();
+          total_candidates += fix_pr_candidates.len();
+          for issue in fix_pr_candidates {
+            if !can_dispatch(state, &issue.id, max_concurrent) {
+              break;
+            }
+            let issue_number = match parse_issue_number(&issue.identifier) {
+              Some(n) => n,
+              None => {
+                warn!(%issue.id, "fix-PR candidate missing issue number in identifier, skipping");
+                continue;
+              }
+            };
+            match resolve_pr_for_issue(
+              &config.tracker.endpoint_or_default(),
+              &config.tracker.api_key,
+              &config.tracker.repo,
+              issue_number,
+              head_pattern,
+            )
+            .await
+            {
+              Ok(Some(_pr)) => {
+                dispatch_worker(
+                  state,
+                  &issue,
+                  prompt_template,
+                  config,
+                  tx.clone(),
+                  worker_handles,
+                )
+                .await;
+              }
+              Ok(None) => {
+                debug!(%issue.id, "fix-PR candidate has no PR (head branch pattern), waiting");
+              }
+              Err(e) => {
+                warn!(%issue.id, %e, "resolve PR for fix-PR candidate failed, skipping");
+              }
+            }
+          }
+        }
+        Err(e) => {
+          warn!(%e, "fetch fix-PR candidates (issues with pr_open_label) failed, skipping fix-PR this tick");
+        }
+      }
+    }
+  }
+
   let exclude_labels = config.tracker.effective_exclude_labels();
   let candidates = match fetch_candidate_issues(
     &config.tracker.endpoint_or_default(),
@@ -393,12 +465,13 @@ async fn dispatch_new_candidates(
     Ok(c) => c,
     Err(e) => {
       warn!(%e, "fetch candidates failed, skipping this tick");
-      return 0;
+      return total_candidates;
     }
   };
   let mut sorted = candidates;
   symphony_orchestration::sort_for_dispatch(&mut sorted);
   let num_candidates = sorted.len();
+  total_candidates += num_candidates;
   if num_candidates > 0 {
     info!(candidates = num_candidates, "fetched candidates");
   }
@@ -416,7 +489,7 @@ async fn dispatch_new_candidates(
     )
     .await;
   }
-  num_candidates
+  total_candidates
 }
 
 /// Log tick summary (running count, retry count, or "no work yet").
@@ -638,6 +711,7 @@ mod tests {
         exclude_labels: None,
         claim_label: None,
         pr_open_label: None,
+        fix_pr_head_branch_pattern: None,
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),
