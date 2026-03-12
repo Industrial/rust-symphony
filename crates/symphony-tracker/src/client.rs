@@ -19,7 +19,9 @@ const REQUEST_TIMEOUT_SECS: u64 = 30;
 /// GitHub API client with shared timeout and auth headers.
 #[derive(Clone)]
 pub struct GitHubApiClient {
+  /// HTTP client used for requests.
   client: reqwest::Client,
+  /// `Authorization` header value (e.g. `Bearer <token>`).
   auth_header: String,
 }
 
