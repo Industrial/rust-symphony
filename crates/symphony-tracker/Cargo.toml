@@ -1,12 +1,12 @@
 [package]
 name = "symphony-tracker"
-version = "0.2.3"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "Issue tracker integration: GitHub normalization and errors (SPEC §11)"
-license = "CC-BY-SA-4.0"
+license.workspace = true
 
 [dependencies]
-symphony-domain = { path = "../symphony-domain", version = "0.2.3" }
+symphony-domain = { workspace = true }
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = [
   "json",

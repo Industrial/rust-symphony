@@ -1,11 +1,11 @@
 [package]
 name = "symphony-workspace"
-version = "0.2.3"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "Workspace path resolution and safety (SPEC §9)"
-license = "CC-BY-SA-4.0"
+license.workspace = true
 
 [dependencies]
-symphony-domain = { path = "../symphony-domain", version = "0.2.3" }
+symphony-domain = { workspace = true }
 thiserror = "2"
 tokio = { version = "1", features = ["fs", "process", "rt", "macros", "time"] }

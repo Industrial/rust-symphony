@@ -1,9 +1,9 @@
 [package]
 name = "symphony-runner"
-version = "0.2.3"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "Tokio orchestrator loop: single-owner task, channel, tick, workers (SPEC §6–7)"
-license = "CC-BY-SA-4.0"
+license.workspace = true
 
 [[bin]]
 name = "symphony"
@@ -15,13 +15,11 @@ chrono = "0.4"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-symphony-config = { path = "../symphony-config", version = "0.2.3" }
-symphony-workflow = { path = "../symphony-workflow", version = "0.2.3" }
-symphony-orchestration = { path = "../symphony-orchestration", version = "0.2.3" }
-symphony-domain = { path = "../symphony-domain", version = "0.2.3" }
-symphony-agent = { path = "../symphony-agent", version = "0.2.3" }
-symphony-prompt = { path = "../symphony-prompt", version = "0.2.3" }
-symphony-tracker = { path = "../symphony-tracker", version = "0.2.3", features = [
-  "client",
-] }
-symphony-workspace = { path = "../symphony-workspace", version = "0.2.3" }
+symphony-config = { workspace = true }
+symphony-workflow = { workspace = true }
+symphony-orchestration = { workspace = true }
+symphony-domain = { workspace = true }
+symphony-agent = { workspace = true }
+symphony-prompt = { workspace = true }
+symphony-tracker = { workspace = true, features = ["client"] }
+symphony-workspace = { workspace = true }

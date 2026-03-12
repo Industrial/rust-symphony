@@ -1,9 +1,9 @@
 [package]
 name = "symphony-domain"
-version = "0.2.3"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "Core domain types for Symphony orchestrator"
-license = "CC-BY-SA-4.0"
+license.workspace = true
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

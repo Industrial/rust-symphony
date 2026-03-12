@@ -43,7 +43,7 @@ jobs:
           fi
       - name: Verify version matches Cargo.toml
         run: |
-          CARGO_VERSION=$(grep '^version = ' crates/symphony-runner/Cargo.toml | head -1 | cut -d '"' -f 2)
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d '"' -f 2)
           TAG_VERSION="${{ steps.version.outputs.version }}"
 
           echo "📋 Tag version: $TAG_VERSION"
