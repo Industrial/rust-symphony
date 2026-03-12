@@ -6,7 +6,7 @@ description = "Prompt construction with Liquid templating (SPEC §12)"
 license = "CC-BY-SA-4.0"
 
 [dependencies]
-symphony-domain = { path = "../symphony-domain" }
+symphony-domain = { path = "../symphony-domain", version = "0.2.3" }
 liquid = "0.26"
 serde_json = "1"
 thiserror = "2"

@@ -6,7 +6,7 @@ description = "Issue tracker integration: GitHub normalization and errors (SPEC 
 license = "CC-BY-SA-4.0"
 
 [dependencies]
-symphony-domain = { path = "../symphony-domain" }
+symphony-domain = { path = "../symphony-domain", version = "0.2.3" }
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = [
   "json",

@@ -6,6 +6,6 @@ description = "Workspace path resolution and safety (SPEC §9)"
 license = "CC-BY-SA-4.0"
 
 [dependencies]
-symphony-domain = { path = "../symphony-domain" }
+symphony-domain = { path = "../symphony-domain", version = "0.2.3" }
 thiserror = "2"
 tokio = { version = "1", features = ["fs", "process", "rt", "macros", "time"] }

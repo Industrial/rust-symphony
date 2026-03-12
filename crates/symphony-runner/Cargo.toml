@@ -15,11 +15,13 @@ chrono = "0.4"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-symphony-config = { path = "../symphony-config" }
-symphony-workflow = { path = "../symphony-workflow" }
-symphony-orchestration = { path = "../symphony-orchestration" }
-symphony-domain = { path = "../symphony-domain" }
-symphony-agent = { path = "../symphony-agent" }
-symphony-prompt = { path = "../symphony-prompt" }
-symphony-tracker = { path = "../symphony-tracker", features = ["client"] }
-symphony-workspace = { path = "../symphony-workspace" }
+symphony-config = { path = "../symphony-config", version = "0.2.3" }
+symphony-workflow = { path = "../symphony-workflow", version = "0.2.3" }
+symphony-orchestration = { path = "../symphony-orchestration", version = "0.2.3" }
+symphony-domain = { path = "../symphony-domain", version = "0.2.3" }
+symphony-agent = { path = "../symphony-agent", version = "0.2.3" }
+symphony-prompt = { path = "../symphony-prompt", version = "0.2.3" }
+symphony-tracker = { path = "../symphony-tracker", version = "0.2.3", features = [
+  "client",
+] }
+symphony-workspace = { path = "../symphony-workspace", version = "0.2.3" }
