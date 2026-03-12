@@ -44,6 +44,9 @@ devenv shell -- moon run :test-coverage
 
 # Run the orchestrator (optional workflow path; config via env)
 devenv shell -- cargo run -p symphony-runner -- /path/to/WORKFLOW.md
+
+# Dry-run: one poll cycle, log candidates and what would be dispatched, then exit (no workers or tracker writes)
+devenv shell -- cargo run -p symphony-runner -- --dry-run /path/to/WORKFLOW.md
 ```
 
 ## Documentation
