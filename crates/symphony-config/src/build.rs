@@ -73,9 +73,10 @@ struct RawAgent {
   max_concurrent_agents_by_state: Option<HashMap<String, u32>>,
 }
 
-/// Raw workflow config root.
+/// Raw workflow config root. SPEC_ADDENDUM_2 B.1: fix_pr is top-level, default false.
 #[derive(Debug, Deserialize)]
 struct RawConfig {
+  fix_pr: Option<bool>,
   tracker: Option<RawTracker>,
   runner: Option<RawRunner>,
   polling: Option<RawPolling>,
@@ -179,7 +180,10 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     max_concurrent_agents_by_state,
   };
 
+  let fix_pr = raw.fix_pr.unwrap_or(false);
+
   let service = ServiceConfig {
+    fix_pr,
     tracker: tracker_config,
     runner: runner_config,
     polling: polling_config,
@@ -448,5 +452,37 @@ mod tests {
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(config.tracker.pr_open_label.as_deref(), Some("pr-open"));
+  }
+
+  #[test]
+  fn from_workflow_config_fix_pr_omitted_defaults_false() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert!(!config.fix_pr);
+  }
+
+  #[test]
+  fn from_workflow_config_fix_pr_explicit_true() {
+    let value = serde_json::json!({
+        "fix_pr": true,
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert!(config.fix_pr);
+  }
+
+  #[test]
+  fn from_workflow_config_fix_pr_explicit_false() {
+    let value = serde_json::json!({
+        "fix_pr": false,
+        "tracker": { "repo": "r", "api_key": "k" },
+        "runner": { "command": "c" }
+    });
+    let config = from_workflow_config(&value).unwrap();
+    assert!(!config.fix_pr);
   }
 }

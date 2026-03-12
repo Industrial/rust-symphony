@@ -171,8 +171,11 @@ impl Default for AgentConfig {
 }
 
 /// Resolved and validated config for dispatch preflight (SPEC §6.3).
+/// SPEC_ADDENDUM_2 B.1: fix_pr gates fix-PR logic (re-dispatch on failing checks or mention); default false.
 #[derive(Debug, Clone)]
 pub struct ServiceConfig {
+  /// When true, orchestrator applies fix-PR logic for issues with pr_open_label. When false or omitted, no fix-PR polling.
+  pub fix_pr: bool,
   pub tracker: TrackerConfig,
   pub runner: RunnerConfig,
   pub polling: PollingConfig,
@@ -202,6 +205,7 @@ mod tests {
 
   fn minimal_service_config() -> ServiceConfig {
     ServiceConfig {
+      fix_pr: false,
       tracker: TrackerConfig {
         repo: "owner/repo".into(),
         api_key: "key".into(),

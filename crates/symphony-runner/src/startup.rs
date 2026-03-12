@@ -45,6 +45,7 @@ mod tests {
   #[tokio::test]
   async fn run_startup_cleanup_empty_terminal_does_not_fetch() {
     let config = ServiceConfig {
+      fix_pr: false,
       tracker: symphony_config::TrackerConfig {
         repo: "owner/repo".into(),
         api_key: "key".into(),

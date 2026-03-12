@@ -157,6 +157,8 @@ pub async fn run_orchestrator(
 
 /// One PollTick: reconcile, validate (caller did), fetch candidates, sort,
 /// process due retries, dispatch new, notify (log).
+/// SPEC_ADDENDUM_2 B.1: Fix-PR logic (candidate set for PR-open issues, check fetch, mention fetch, re-dispatch)
+/// MUST be gated on `config.fix_pr == true`; when false, do not call PR or Checks API for fix-PR purposes.
 async fn poll_tick(
   state: &mut OrchestratorState,
   config: &ServiceConfig,
@@ -625,6 +627,7 @@ mod tests {
 
   fn test_config() -> ServiceConfig {
     ServiceConfig {
+      fix_pr: false,
       tracker: symphony_config::TrackerConfig {
         repo: "owner/repo".into(),
         api_key: "key".into(),
