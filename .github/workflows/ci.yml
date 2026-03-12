@@ -9,6 +9,7 @@ env:
   RUSTC_WRAPPER: sccache
 permissions:
   contents: read
+  pull-requests: write
 jobs:
   ci:
     name: CI (checks → integration → e2e)
@@ -25,9 +26,48 @@ jobs:
       - uses: ./.github/actions/setup-sccache
       - uses: ./.github/actions/setup-mold
       - uses: ./.github/actions/setup-moon
-      - name: Run checks (format, check, build, test, audit, check-docs)
+      - name: Run checks
         uses: ./.github/actions/run-devenv-moon
         with:
           targets: ":format :check :build :test :audit :check-docs"
           use-affected: "true"
+      - name: Run coverage
+        shell: bash
+        env:
+          MOON_TOOLCHAIN_FORCE_GLOBALS: rust
+        run: |
+          unset MOON_BASE MOON_HEAD
+          devenv shell -- moon run :coverage 2>&1 | tee coverage-output.txt
+      - name: Find existing coverage comment
+        if: github.event_name == 'pull_request'
+        id: find-comment
+        run: |
+          COMMENT_ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/${{ github.event.pull_request.number }}/comments" --jq '.[] | select(.body != null and (.body | contains("<!-- coverage-report -->"))) | .id' | head -1)
+          echo "id=${COMMENT_ID:-}" >> "$GITHUB_OUTPUT"
+      - name: Prepare coverage comment body
+        if: github.event_name == 'pull_request'
+        run: |
+          max_len=60000
+          body=$(cat coverage-output.txt)
+          [ "${#body}" -gt "$max_len" ] && body="...(truncated)"$'\n\n'"${body: -$max_len}"
+          escaped=$(printf "%s" "$body" | sed "s/\`\`\`/\\\`\\\`\\\`/g")
+          {
+            echo "## Coverage output"
+            echo ""
+            echo "<!-- coverage-report -->"
+            echo ""
+            echo '```'
+            printf "%s" "$escaped"
+            echo ""
+            echo '```'
+          } > coverage-comment.md
+      - name: Comment coverage output on PR
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.id }}
+          body-path: coverage-comment.md
+          edit-mode: replace
       - uses: ./.github/actions/sccache-stats

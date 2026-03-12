@@ -13,6 +13,7 @@ workspace:
 tasks:
   # Format entire workspace
   format:
+    description: 'Format the workspace with treefmt (Rust, Nix, shell, JS/TS, YAML, TOML)'
     command: 'treefmt'
     inputs:
       - 'treefmt.toml'
@@ -29,6 +30,7 @@ tasks:
       outputStyle: buffer-only-failure
   # Audit workspace dependencies
   audit:
+    description: 'Run cargo audit for known Rust security advisories'
     command: 'cargo'
     args: ['audit', '--ignore', 'RUSTSEC-2023-0071', '--ignore', 'RUSTSEC-2024-0436', '--ignore', 'RUSTSEC-2024-0445']
     inputs:
@@ -36,8 +38,22 @@ tasks:
       - 'Cargo.lock'
     options:
       outputStyle: buffer-only-failure
+  # Test coverage with llvm-cov (run nextest under coverage, output HTML report)
+  coverage:
+    description: 'Run tests with llvm-cov and generate HTML coverage report'
+    command: 'cargo'
+    args: ['llvm-cov', 'nextest']
+    deps: ['~:format']
+    inputs:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '**/*.rs'
+    options:
+      cache: false
+      # outputStyle: buffer-only-failure
   # Check documentation
   check-docs:
+    description: 'Build docs and run clippy with missing_docs_in_private_items'
     command: 'bash'
     args: ['-c', 'RUSTDOCFLAGS="" cargo doc --all-features --no-deps 2>&1 | tee log/docs-warnings.log | grep -E "(warning|error|Documenting|Finished)" || true && cargo clippy --lib --all-features -- -D warnings -W clippy::missing_docs_in_private_items']
     inputs:
