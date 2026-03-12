@@ -76,7 +76,7 @@ jobs:
           components: rustfmt, clippy
       # Setup sccache for compilation caching
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
+        uses: mozilla-actions/sccache-action@v0.0.9
         with:
           version: "latest"
         env:
@@ -255,7 +255,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       # Setup sccache for compilation caching
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
+        uses: mozilla-actions/sccache-action@v0.0.9
         with:
           version: "latest"
         env:
