@@ -46,21 +46,7 @@ jobs:
           echo "id=${COMMENT_ID:-}" >> "$GITHUB_OUTPUT"
       - name: Prepare coverage comment body
         if: github.event_name == 'pull_request'
-        run: |
-          max_len=60000
-          body=$(cat coverage-output.txt)
-          [ "${#body}" -gt "$max_len" ] && body="...(truncated)"$'\n\n'"${body: -$max_len}"
-          escaped=$(printf '%s' "$body" | sed 's/```/\\`\\`\\`/g')
-          {
-            echo "## Coverage output"
-            echo ""
-            echo "<!-- coverage-report -->"
-            echo ""
-            echo '```' 
-            printf '%s' "$escaped"
-            echo ""
-            echo '```'
-          } > coverage-comment.md
+        run: "max_len=60000\nbody=$(cat coverage-output.txt)\n[ \"${#body}\" -gt \"$max_len\" ] && body=\"...(truncated)\"$'\\n\\n'\"${body: -$max_len}\"\nescaped=$(printf '%s' \"$body\" | sed 's/```/\\\\`\\\\`\\\\`/g')\n{\n  echo \"## Coverage output\"\n  echo \"\"\n  echo \"<!-- coverage-report -->\"\n  echo \"\"\n  echo '```' \n  printf '%s' \"$escaped\"\n  echo \"\"\n  echo '```'\n} > coverage-comment.md\n"
       - name: Comment coverage output on PR
         if: github.event_name == 'pull_request'
         uses: peter-evans/create-or-update-comment@v4
