@@ -50,12 +50,35 @@ The orchestrator **only reads** issues (no writes). Required API calls:
 | List issues (candidates, terminal cleanup) | `GET /repos/{owner}/{repo}/issues?state=...&per_page=100&page={n}` |
 | Single issue (reconciliation) | `GET /repos/{owner}/{repo}/issues/{issue_number}` |
 
-Use the **minimum** scope that allows these:
+**Orchestrator only (read-only):**
 
-- **Fine-grained PAT**: Repository permissions → **Issues: Read-only** for the target repo(s). (Use "Read and write" only if another part of the system, e.g. the agent, will use the same token to update issues.)
-- **Classic PAT**: For a **public** repo, **`public_repo`** is enough. For a **private** repo, **`repo`** (full control of private repositories) is required to read issues.
+- **Fine-grained PAT**: Repository permissions → **Issues: Read-only** for the target repo(s).
+- **Classic PAT**: For a **public** repo, **`public_repo`** is enough. For a **private** repo, **`repo`** is required to read issues.
 
-No other scopes (workflow, packages, org, etc.) are needed for the tracker.
+No other scopes are needed for the orchestrator. If the **agent** in the workspace uses the same token (e.g. `GITHUB_TOKEN`) for the PR-driven workflow (claim label, create PR, comment on issue), see below.
+
+#### Token permissions for agent (PR-driven workflow)
+
+When the coding agent uses the same token (e.g. `GITHUB_TOKEN` in the workspace) to add labels, create pull requests, and comment on issues, the token must have **write** access for those operations. Without these, the agent will see errors such as "Resource not accessible by personal access token (addLabelsToLabelable)" or "(createPullRequest)".
+
+Reference: [Permissions required for fine-grained personal access tokens](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
+
+| Agent action | API / usage | Fine-grained (repository) | Classic PAT |
+|--------------|-------------|---------------------------|-------------|
+| Add labels to issue (claim, pr-open) | `POST /repos/{owner}/{repo}/issues/{number}/labels` | **Issues: Read and write** | `repo` (or scope that includes issue write) |
+| Comment on issue (PR link) | `POST /repos/{owner}/{repo}/issues/{number}/comments` | **Issues: Read and write** | `repo` |
+| Create pull request | `POST /repos/{owner}/{repo}/pulls` | **Pull requests: Read and write** | `repo` |
+| Push branch (before PR) | Git push over HTTPS | **Contents: Read and write** | `repo` |
+
+**Recommended for PR-driven workflow (one token for orchestrator + agent):**
+
+- **Fine-grained PAT** (repository scope for the tracker repo):
+  - **Issues: Read and write** — list issues (orchestrator), add labels and comments (agent).
+  - **Pull requests: Read and write** — create PR (agent).
+  - **Contents: Read and write** — push branch (agent); Metadata is set automatically.
+- **Classic PAT**: **`repo`** (full repository access) for the target repo covers all of the above (public or private).
+
+Ensure the repo has the workflow labels (e.g. `symphony-claimed`, `pr-open`) created beforehand; the token cannot create repository labels without **Administration: Read and write** (which is broader than needed — create labels once via the GitHub UI or a token that can manage labels).
 
 ---
 

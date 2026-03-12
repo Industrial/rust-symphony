@@ -1,7 +1,7 @@
 ---
 # GitHub issue tracker (required).
 # Set GITHUB_TOKEN in the environment; workflow resolves $GITHUB_TOKEN at runtime.
-# Token needs read access to Issues only: fine-grained "Issues: Read-only", or classic "public_repo" (public) / "repo" (private). See docs/10-github-tracker.md.
+# Token: for orchestrator-only, Issues: Read-only (or classic public_repo/repo). For PR-driven workflow the agent needs write: Issues, Pull requests, Contents. See docs/SPEC/10-github-tracker.md.
 # Addendum 1 (docs/SPEC_ADDENDUM_1.md): include_labels / exclude_labels filter candidates; claim_label is auto-excluded so the agent can "claim" an issue; pr_open_label optional for PR-driven flow.
 tracker:
   repo: "Industrial/rust-symphony"
@@ -23,7 +23,8 @@ tracker:
 # Debug: RUST_LOG=debug to see agent_direction=send|recv and agent_line.
 runner:
   type: cli
-  command: "/run/current-system/sw/bin/cursor-agent --force --approve-mcps --model auto --force --workspace . --print --output-format stream-json --stream-partial-output"
+  # command: "/run/current-system/sw/bin/cursor-agent --force --approve-mcps --model auto --force --workspace . --print --output-format stream-json --stream-partial-output"
+  command: "/run/current-system/sw/bin/cursor-agent --force --approve-mcps --model auto --force --workspace . --print --output-format text"
   turn_timeout_ms: 3600000
   read_timeout_ms: 60000
   stall_timeout_ms: 300000
