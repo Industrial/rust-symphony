@@ -29,5 +29,8 @@ async fn codex_handshake_with_fake_subprocess_completes_normally() {
   .await
   .expect("run_agent_codex");
 
-  assert!(matches!(outcome.exit_reason, symphony_agent::AgentExitReason::Normal));
+  assert!(matches!(
+    outcome.exit_reason,
+    symphony_agent::AgentExitReason::Normal
+  ));
 }

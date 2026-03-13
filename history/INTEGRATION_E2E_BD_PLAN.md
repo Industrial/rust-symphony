@@ -76,6 +76,13 @@ devenv shell -- bd close <id> --reason "Done"
 
 ---
 
+## Moon and CI
+
+- **Moon:** Integration and E2E tests are run by each crate’s existing **`test`** task. Each crate’s `test` task runs `cargo nextest run` for that crate, which runs both unit tests and `tests/*.rs` (integration tests). So `moon run symphony-runner:test` and `moon run :test` already include the new integration tests. No extra Moon task is required.
+- **CI:** The CI workflow runs `:format :check :build :test :audit :check-docs`. So **`:test`** runs all crates’ tests, including the new integration tests. The only test not run in CI is **`real_tracker_smoke`** (it is `#[ignore]` and requires `GITHUB_TOKEN`); that is intentional.
+
+---
+
 ## Reference
 
 - **Strategy:** [history/TESTING_STRATEGY.md](TESTING_STRATEGY.md)

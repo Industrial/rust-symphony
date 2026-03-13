@@ -13,7 +13,11 @@ fn fixture_path() -> PathBuf {
 fn load_workflow_from_fixture_parses_config_and_prompt() {
   std::env::set_var("GITHUB_TOKEN", "test-token");
   let path = fixture_path();
-  assert!(path.exists(), "fixture WORKFLOW.md must exist at {:?}", path);
+  assert!(
+    path.exists(),
+    "fixture WORKFLOW.md must exist at {:?}",
+    path
+  );
 
   let def = load_workflow_file(Some(path)).expect("load_workflow_file");
   assert!(!def.prompt_template.is_empty());
@@ -26,5 +30,11 @@ fn load_workflow_from_fixture_parses_config_and_prompt() {
   assert_eq!(config.polling.interval_ms, 30_000);
   assert_eq!(config.agent.max_concurrent_agents, 2);
   assert_eq!(config.agent.max_turns, 10);
-  assert!(config.worktree.root.to_string_lossy().contains(".worktrees"));
+  assert!(
+    config
+      .worktree
+      .root
+      .to_string_lossy()
+      .contains(".worktrees")
+  );
 }

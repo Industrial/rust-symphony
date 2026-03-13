@@ -112,7 +112,6 @@ tempfile = "3"     # symphony-workspace
 
 ### 5.3 Running tests
 
-- **Unit + in-crate integration:** Already covered by `devenv shell -- moon run :test-nextest` (or `cargo nextest run`). No change.
 - **Real integration:**  
   - `cargo test --features integration` and skip if `GITHUB_TOKEN` unset, or  
   - `cargo test --ignored` when token is set (e.g. in release workflow or manually).

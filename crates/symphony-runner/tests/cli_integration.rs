@@ -13,13 +13,16 @@ fn cli_missing_workflow_path_exits_nonzero() {
     .arg("/nonexistent/WORKFLOW.md")
     .status()
     .expect("spawn symphony");
-  assert!(!status.success(), "missing workflow path should exit non-zero");
+  assert!(
+    !status.success(),
+    "missing workflow path should exit non-zero"
+  );
 }
 
 #[test]
 fn cli_valid_workflow_path_dry_run_exits_cleanly() {
-  let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-    .join("../symphony-config/tests/fixtures/WORKFLOW.md");
+  let fixture =
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../symphony-config/tests/fixtures/WORKFLOW.md");
   if !fixture.exists() {
     eprintln!("SKIP: fixture {:?} not found", fixture);
     return;
@@ -36,7 +39,11 @@ fn cli_valid_workflow_path_dry_run_exits_cleanly() {
     "binary should not panic (code 101); stderr: {}",
     String::from_utf8_lossy(&output.stderr)
   );
-  assert!(code == Some(0) || code == Some(1), "exit 0 (success) or 1 (e.g. auth) expected; got {:?}", code);
+  assert!(
+    code == Some(0) || code == Some(1),
+    "exit 0 (success) or 1 (e.g. auth) expected; got {:?}",
+    code
+  );
 }
 
 /// Real tracker smoke: requires GITHUB_TOKEN. Run with `cargo test -p symphony-runner real_tracker_smoke -- --ignored`
@@ -48,8 +55,8 @@ fn real_tracker_smoke() {
     eprintln!("SKIP: GITHUB_TOKEN not set");
     return;
   }
-  let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-    .join("../symphony-config/tests/fixtures/WORKFLOW.md");
+  let fixture =
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../symphony-config/tests/fixtures/WORKFLOW.md");
   if !fixture.exists() {
     eprintln!("SKIP: fixture {:?} not found", fixture);
     return;

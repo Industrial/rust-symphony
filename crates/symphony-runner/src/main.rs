@@ -14,9 +14,9 @@ use symphony_domain::OrchestratorState;
 use symphony_orchestration::OrchestratorMessage;
 use symphony_workflow::{load_workflow, resolve_workflow_path};
 
-use symphony_runner::{dry_run_one_poll, run_orchestrator};
-use symphony_runner::{spawn_workflow_reload_task, run_startup_cleanup};
 use symphony_runner::cli::Cli;
+use symphony_runner::{dry_run_one_poll, run_orchestrator};
+use symphony_runner::{run_startup_cleanup, spawn_workflow_reload_task};
 
 const WORKFLOW_RELOAD_POLL_SECS: u64 = 5;
 
