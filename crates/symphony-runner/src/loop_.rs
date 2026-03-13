@@ -763,6 +763,7 @@ async fn dispatch_worker(
   debug!(%issue_id, "dispatched");
 }
 
+/// Sends a `WorkerExit` message on the orchestrator channel so the main loop can release the claim and update state.
 fn release_claim_and_send_exit(
   tx: &mpsc::UnboundedSender<OrchestratorMessage>,
   issue_id: &str,
