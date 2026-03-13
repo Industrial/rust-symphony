@@ -14,18 +14,18 @@ members = [
 
 # Single version and shared metadata for all workspace crates (inherit with version.workspace = true).
 [workspace.package]
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 license = "CC-BY-SA-4.0"
 
 # Workspace crates; path is relative to this file. Use in members with dependency = { workspace = true }.
 # Version must match [workspace.package] for crates.io publish.
 [workspace.dependencies]
-symphony-domain = { path = "crates/symphony-domain", version = "0.3.0" }
-symphony-config = { path = "crates/symphony-config", version = "0.3.0" }
-symphony-workflow = { path = "crates/symphony-workflow", version = "0.3.0" }
-symphony-orchestration = { path = "crates/symphony-orchestration", version = "0.3.0" }
-symphony-agent = { path = "crates/symphony-agent", version = "0.3.0" }
-symphony-prompt = { path = "crates/symphony-prompt", version = "0.3.0" }
-symphony-tracker = { path = "crates/symphony-tracker", version = "0.3.0" }
-symphony-workspace = { path = "crates/symphony-workspace", version = "0.3.0" }
+symphony-domain = { path = "crates/symphony-domain", version = "0.3.1" }
+symphony-config = { path = "crates/symphony-config", version = "0.3.1" }
+symphony-workflow = { path = "crates/symphony-workflow", version = "0.3.1" }
+symphony-orchestration = { path = "crates/symphony-orchestration", version = "0.3.1" }
+symphony-agent = { path = "crates/symphony-agent", version = "0.3.1" }
+symphony-prompt = { path = "crates/symphony-prompt", version = "0.3.1" }
+symphony-tracker = { path = "crates/symphony-tracker", version = "0.3.1" }
+symphony-workspace = { path = "crates/symphony-workspace", version = "0.3.1" }
