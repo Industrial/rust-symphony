@@ -1,0 +1,3 @@
+[submodule ".cursor/agency-agents"]
+	path = .cursor/agency-agents
+	url = https://github.com/msitarzewski/agency-agents.git
