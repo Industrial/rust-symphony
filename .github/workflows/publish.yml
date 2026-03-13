@@ -186,6 +186,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
+    env:
+      # Binaries job does not use setup-sccache; avoid inheriting RUSTC_WRAPPER
+      RUSTC_WRAPPER: ""
     steps:
       - uses: actions/checkout@v6
       - uses: taiki-e/upload-rust-binary-action@v1
