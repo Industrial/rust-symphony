@@ -448,6 +448,9 @@ pub async fn fetch_commit_status_for_ref(
 /// **Newness rule (B.5.1):** If `created_after` is Some (ISO8601, e.g. PR `updated_at`), only comments
 /// created after that time count. This implementation uses "comments created after the PR's last update"
 /// to avoid re-dispatch on the same old comment every poll. Alternative: last dispatch time or last seen comment id per issue.
+///
+/// Checks: (1) issue comments (issue_number), (2) PR main-thread comments (issues/pr_number — on GitHub a PR is an issue),
+/// (3) PR review/line comments (pulls/pr_number/comments).
 pub async fn fetch_has_qualifying_mention(
   endpoint: &str,
   api_key: &str,
@@ -474,21 +477,28 @@ pub async fn fetch_has_qualifying_mention(
     true
   };
 
-  let issues_path = format!("/{}/comments?per_page={}", issue_number, PER_PAGE);
-  let url = GitHubApiClient::repo_issues_url(endpoint, &owner, &repo_name, &issues_path);
-  let res = api.get(&url).await?;
-  if res.status().is_success() {
-    let body: Vec<Value> = res
-      .json()
-      .await
-      .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
-    for c in &body {
-      if let (Some(b), Some(created)) = (
-        c.get("body").and_then(|v| v.as_str()),
-        c.get("created_at").and_then(|v| v.as_str()),
-      ) {
-        if check(b, created) {
-          return Ok(true);
+  let issue_nos: Vec<u64> = if pr_number != issue_number {
+    vec![issue_number, pr_number]
+  } else {
+    vec![issue_number]
+  };
+  for issue_no in issue_nos {
+    let issues_path = format!("/{}/comments?per_page={}", issue_no, PER_PAGE);
+    let url = GitHubApiClient::repo_issues_url(endpoint, &owner, &repo_name, &issues_path);
+    let res = api.get(&url).await?;
+    if res.status().is_success() {
+      let body: Vec<Value> = res
+        .json()
+        .await
+        .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
+      for c in &body {
+        if let (Some(b), Some(created)) = (
+          c.get("body").and_then(|v| v.as_str()),
+          c.get("created_at").and_then(|v| v.as_str()),
+        ) {
+          if check(b, created) {
+            return Ok(true);
+          }
         }
       }
     }
