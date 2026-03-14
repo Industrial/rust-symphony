@@ -225,6 +225,7 @@ pub async fn spawn(
   }
 }
 
+/// Firecracker microVM sandbox: VM lifecycle and vsock guest protocol (stub).
 #[cfg(feature = "firecracker")]
 mod firecracker {
   use super::*;

@@ -15,9 +15,13 @@ use crate::runner::AgentRunnerError;
 /// Unified handle for an agent process (host or sandboxed).
 /// Use take_stdin(), take_stdout(), take_stderr() then wait().
 pub struct AgentProcessHandle {
+  /// Process stdin; take to send input.
   pub stdin: Option<Box<dyn AsyncWrite + Send + Unpin>>,
+  /// Process stdout; take to read output.
   pub stdout: Option<Box<dyn AsyncRead + Send + Unpin>>,
+  /// Process stderr; take to read stderr.
   pub stderr: Option<Box<dyn AsyncRead + Send + Unpin>>,
+  /// Receiver for process exit status (internal).
   wait_rx: oneshot::Receiver<Result<ExitStatus, AgentRunnerError>>,
 }
 
@@ -62,6 +66,7 @@ pub async fn spawn_agent_process(
   }
 }
 
+/// Spawn the agent as a host process (sh -lc command) in the worktree directory.
 async fn spawn_host(
   command: &str,
   worktree_path: &Path,
@@ -106,6 +111,7 @@ async fn spawn_host(
   })
 }
 
+/// Spawn the agent inside the Firecracker sandbox using the given config.
 async fn spawn_sandbox(
   fc: &FirecrackerSandboxConfig,
   command: &str,
@@ -122,12 +128,7 @@ async fn spawn_sandbox(
 
   let mut child = sandbox_spawn(&config, command, worktree_path)
     .await
-    .map_err(|e| {
-      AgentRunnerError::Spawn(std::io::Error::new(
-        std::io::ErrorKind::Other,
-        e.to_string(),
-      ))
-    })?;
+    .map_err(|e| AgentRunnerError::Spawn(std::io::Error::other(e.to_string())))?;
 
   let stdin = child
     .stdin

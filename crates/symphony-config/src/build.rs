@@ -177,12 +177,10 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
   let firecracker = runner_raw.firecracker.and_then(|raw| {
     let kernel_path = raw
       .kernel_path
-      .map(|s| resolve_worktree_root(s.trim()).ok())
-      .flatten()?;
+      .and_then(|s| resolve_worktree_root(s.trim()).ok())?;
     let rootfs_path = raw
       .rootfs_path
-      .map(|s| resolve_worktree_root(s.trim()).ok())
-      .flatten()?;
+      .and_then(|s| resolve_worktree_root(s.trim()).ok())?;
     Some(FirecrackerSandboxConfig {
       kernel_path,
       rootfs_path,
