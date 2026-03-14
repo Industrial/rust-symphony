@@ -1682,7 +1682,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "symphony-agent"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1694,7 +1694,7 @@ dependencies = [
 
 [[package]]
 name = "symphony-config"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "once_cell",
  "serde",
@@ -1710,7 +1710,7 @@ dependencies = [
 
 [[package]]
 name = "symphony-domain"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "serde",
@@ -1721,7 +1721,7 @@ dependencies = [
 
 [[package]]
 name = "symphony-orchestration"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "serde",
@@ -1732,7 +1732,7 @@ dependencies = [
 
 [[package]]
 name = "symphony-prompt"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "liquid",
  "serde_json",
@@ -1743,7 +1743,7 @@ dependencies = [
 
 [[package]]
 name = "symphony-runner"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "clap",
@@ -1766,7 +1766,7 @@ dependencies = [
 
 [[package]]
 name = "symphony-tracker"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "reqwest",
@@ -1782,7 +1782,7 @@ dependencies = [
 
 [[package]]
 name = "symphony-workflow"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "once_cell",
  "regex",
@@ -1796,7 +1796,7 @@ dependencies = [
 
 [[package]]
 name = "symphony-workspace"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "symphony-domain",
  "tempfile",
