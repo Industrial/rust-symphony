@@ -42,10 +42,10 @@
       packages = let
         rustSymphonyPkg = pkgs.rustPlatform.buildRustPackage {
           pname = "rust-symphony";
-          version = "0.4.0";
+          version = "0.4.1";
           src = self;
           cargoLock.lockFile = self + "/Cargo.lock";
-          nativeBuildInputs = [pkgs.pkg-config];
+          nativeBuildInputs = [pkgs.pkg-config pkgs.git];
           buildInputs = [pkgs.openssl];
           cargoBuildFlags = ["--package" "symphony-runner" "--bin" "symphony"];
           installPhase = ''
