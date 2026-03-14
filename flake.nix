@@ -42,7 +42,7 @@
       packages = let
         rustSymphonyPkg = pkgs.rustPlatform.buildRustPackage {
           pname = "rust-symphony";
-          version = "0.3.1";
+          version = "0.4.0";
           src = self;
           cargoLock.lockFile = self + "/Cargo.lock";
           nativeBuildInputs = [pkgs.pkg-config];
