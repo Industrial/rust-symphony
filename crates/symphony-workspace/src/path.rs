@@ -6,11 +6,13 @@ use symphony_domain::sanitize_worktree_key;
 
 /// Per-issue git worktree path: `root.join(sanitize_worktree_key(identifier))`.
 pub fn worktree_path(root: &Path, identifier: &str) -> PathBuf {
+  tracing::trace!("worktree_path");
   root.join(sanitize_worktree_key(identifier))
 }
 
 /// Require that `path` is under `root` (path component semantics). Used for safety (SPEC §9.5).
 pub fn is_path_under_root(path: &Path, root: &Path) -> bool {
+  tracing::trace!("is_path_under_root");
   path.starts_with(root)
 }
 

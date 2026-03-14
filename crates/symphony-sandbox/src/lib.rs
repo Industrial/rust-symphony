@@ -64,6 +64,7 @@ pub struct SandboxChild {
 impl SandboxChild {
   /// Wait for the agent process inside the VM to exit.
   pub async fn wait(&mut self) -> std::result::Result<ExitStatus, SandboxError> {
+    tracing::trace!("SandboxChild::wait");
     match self.exit_rx.try_recv() {
       Ok(result) => result,
       Err(oneshot::error::TryRecvError::Closed) => Err(SandboxError::VmExited),
@@ -86,6 +87,7 @@ impl SandboxStdin {
   /// Create from an async writer (used when building SandboxChild from VM/vsock).
   #[allow(dead_code)]
   pub(crate) fn new(w: Box<dyn AsyncWrite + Unpin + Send>) -> Self {
+    tracing::trace!("SandboxStdin::new");
     Self { inner: Some(w) }
   }
 }
@@ -96,6 +98,7 @@ impl AsyncWrite for SandboxStdin {
     cx: &mut std::task::Context<'_>,
     buf: &[u8],
   ) -> std::task::Poll<std::result::Result<usize, std::io::Error>> {
+    tracing::trace!("SandboxStdin::poll_write");
     match self.inner.as_mut() {
       Some(w) => std::pin::Pin::new(w).poll_write(cx, buf),
       None => std::task::Poll::Ready(Err(std::io::Error::new(
@@ -108,6 +111,7 @@ impl AsyncWrite for SandboxStdin {
     mut self: std::pin::Pin<&mut Self>,
     cx: &mut std::task::Context<'_>,
   ) -> std::task::Poll<std::result::Result<(), std::io::Error>> {
+    tracing::trace!("SandboxStdin::poll_flush");
     match self.inner.as_mut() {
       Some(w) => std::pin::Pin::new(w).poll_flush(cx),
       None => std::task::Poll::Ready(Ok(())),
@@ -117,6 +121,7 @@ impl AsyncWrite for SandboxStdin {
     mut self: std::pin::Pin<&mut Self>,
     cx: &mut std::task::Context<'_>,
   ) -> std::task::Poll<std::result::Result<(), std::io::Error>> {
+    tracing::trace!("SandboxStdin::poll_shutdown");
     match self.inner.as_mut() {
       Some(w) => std::pin::Pin::new(w).poll_shutdown(cx),
       None => std::task::Poll::Ready(Ok(())),
@@ -134,6 +139,7 @@ impl SandboxStdout {
   /// Create from an async reader (used when building SandboxChild from VM/vsock).
   #[allow(dead_code)]
   pub(crate) fn new(r: Box<dyn AsyncRead + Unpin + Send>) -> Self {
+    tracing::trace!("SandboxStdout::new");
     Self {
       inner: BufReader::new(r),
     }
@@ -146,6 +152,7 @@ impl AsyncRead for SandboxStdout {
     cx: &mut std::task::Context<'_>,
     buf: &mut tokio::io::ReadBuf<'_>,
   ) -> Poll<std::io::Result<()>> {
+    tracing::trace!("SandboxStdout::poll_read");
     std::pin::Pin::new(&mut self.inner).poll_read(cx, buf)
   }
 }
@@ -155,9 +162,11 @@ impl AsyncBufRead for SandboxStdout {
     self: std::pin::Pin<&mut Self>,
     cx: &mut std::task::Context<'_>,
   ) -> Poll<std::io::Result<&[u8]>> {
+    tracing::trace!("SandboxStdout::poll_fill_buf");
     std::pin::Pin::new(&mut self.get_mut().inner).poll_fill_buf(cx)
   }
   fn consume(mut self: std::pin::Pin<&mut Self>, amt: usize) {
+    tracing::trace!("SandboxStdout::consume");
     std::pin::Pin::new(&mut self.inner).consume(amt)
   }
 }
@@ -172,6 +181,7 @@ impl SandboxStderr {
   /// Create from an async reader (used when building SandboxChild from VM/vsock).
   #[allow(dead_code)]
   pub(crate) fn new(r: Box<dyn AsyncRead + Unpin + Send>) -> Self {
+    tracing::trace!("SandboxStderr::new");
     Self {
       inner: BufReader::new(r),
     }
@@ -184,6 +194,7 @@ impl AsyncRead for SandboxStderr {
     cx: &mut std::task::Context<'_>,
     buf: &mut tokio::io::ReadBuf<'_>,
   ) -> std::task::Poll<std::io::Result<()>> {
+    tracing::trace!("SandboxStderr::poll_read");
     std::pin::Pin::new(&mut self.inner).poll_read(cx, buf)
   }
 }
@@ -195,6 +206,7 @@ pub async fn spawn(
   command: &str,
   _worktree_path: &Path,
 ) -> Result<SandboxChild, SandboxError> {
+  tracing::trace!("spawn");
   let _ = (config, command);
 
   #[cfg(feature = "firecracker")]
@@ -225,6 +237,7 @@ mod firecracker {
     _command: &str,
     _worktree_path: &Path,
   ) -> Result<SandboxChild, SandboxError> {
+    tracing::trace!("spawn_vm");
     Err(SandboxError::Unavailable(
       "Firecracker VM lifecycle (fctools Vm::prepare/start, worktree drive, vsock to guest agent-runner) \
        is not yet implemented. Use runner.sandbox: none for host process. \

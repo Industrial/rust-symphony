@@ -20,6 +20,7 @@ const MAX_LINE_LEN: usize = 10 * 1024 * 1024;
 
 /// Split command string into [program, arg1, arg2, ...] respecting double/single quotes (shell-like).
 fn split_command(cmd: &str) -> Vec<&str> {
+  tracing::trace!("split_command");
   let mut out = Vec::new();
   let mut rest = cmd.trim();
   while !rest.is_empty() {
@@ -90,6 +91,7 @@ pub async fn run_agent_cli(
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
   sandbox_config: Option<&FirecrackerSandboxConfig>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
+  tracing::trace!("run_agent_cli");
   let start = std::time::Instant::now();
 
   let argv = split_command(command);

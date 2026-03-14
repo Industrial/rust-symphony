@@ -8,6 +8,7 @@ use crate::WorkflowError;
 ///
 /// Precedence: (1) explicit path from CLI/config, (2) `WORKFLOW.md` in current working directory.
 pub fn resolve_workflow_path(explicit: Option<PathBuf>) -> Result<PathBuf, WorkflowError> {
+  tracing::trace!("resolve_workflow_path");
   let path = match explicit {
     Some(p) => p,
     None => std::env::current_dir()

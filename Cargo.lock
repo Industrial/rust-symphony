@@ -1790,6 +1790,7 @@ dependencies = [
  "symphony-workflow",
  "thiserror",
  "tokio",
+ "tracing",
  "validator",
 ]
 
@@ -1800,6 +1801,7 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
+ "tracing",
  "validator",
 ]
 
@@ -1811,6 +1813,7 @@ dependencies = [
  "serde",
  "serde_json",
  "symphony-domain",
+ "tracing",
 ]
 
 [[package]]
@@ -1821,6 +1824,7 @@ dependencies = [
  "serde_json",
  "symphony-domain",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -1870,6 +1874,7 @@ dependencies = [
  "symphony-domain",
  "thiserror",
  "tokio",
+ "tracing",
  "urlencoding",
  "wiremock",
 ]
@@ -1885,6 +1890,7 @@ dependencies = [
  "serde_yaml",
  "symphony-domain",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -1895,6 +1901,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

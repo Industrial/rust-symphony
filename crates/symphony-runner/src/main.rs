@@ -29,6 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     )
     .init();
 
+  tracing::trace!("main");
   let cli = Cli::parse();
 
   let resolved_path = resolve_workflow_path(cli.workflow_path.clone())?;

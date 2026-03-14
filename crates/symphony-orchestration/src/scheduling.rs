@@ -4,6 +4,7 @@ use symphony_domain::Issue;
 
 /// Sort issues for dispatch: priority ascending (1 = highest; null last), created_at oldest first (None last), identifier tie-break.
 pub fn sort_for_dispatch(issues: &mut [Issue]) {
+  tracing::trace!("sort_for_dispatch");
   issues.sort_by(|a, b| {
     let p = (a.priority.unwrap_or(i32::MAX)).cmp(&b.priority.unwrap_or(i32::MAX));
     if p != std::cmp::Ordering::Equal {
@@ -24,6 +25,7 @@ pub fn sort_for_dispatch(issues: &mut [Issue]) {
 
 /// Compute retry delay in ms. Continuation (normal exit): 1000 ms. Failure-driven: min(10_000 * 2^(attempt - 1), max_retry_backoff_ms).
 pub fn retry_delay_ms(attempt: u32, max_retry_backoff_ms: u64, continuation: bool) -> u64 {
+  tracing::trace!("retry_delay_ms");
   if continuation {
     return 1000;
   }

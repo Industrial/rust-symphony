@@ -29,6 +29,7 @@ impl AgentProcessHandle {
     stderr: Option<Box<dyn AsyncRead + Send + Unpin>>,
     wait_rx: oneshot::Receiver<Result<ExitStatus, AgentRunnerError>>,
   ) -> Self {
+    tracing::trace!("AgentProcessHandle::from_parts");
     Self {
       stdin,
       stdout,
@@ -39,6 +40,7 @@ impl AgentProcessHandle {
 
   /// Wait for the process to exit.
   pub async fn wait(&mut self) -> Result<ExitStatus, AgentRunnerError> {
+    tracing::trace!("AgentProcessHandle::wait");
     let (_, placeholder) = oneshot::channel();
     let wait_rx = std::mem::replace(&mut self.wait_rx, placeholder);
     wait_rx
@@ -53,6 +55,7 @@ pub async fn spawn_agent_process(
   worktree_path: &Path,
   sandbox_config: Option<&FirecrackerSandboxConfig>,
 ) -> Result<AgentProcessHandle, AgentRunnerError> {
+  tracing::trace!("spawn_agent_process");
   match sandbox_config {
     None => spawn_host(command, worktree_path).await,
     Some(fc) => spawn_sandbox(fc, command, worktree_path).await,
@@ -63,6 +66,7 @@ async fn spawn_host(
   command: &str,
   worktree_path: &Path,
 ) -> Result<AgentProcessHandle, AgentRunnerError> {
+  tracing::trace!("spawn_host");
   let mut child = Command::new("sh")
     .args(["-lc", command])
     .current_dir(worktree_path)
@@ -107,6 +111,7 @@ async fn spawn_sandbox(
   command: &str,
   worktree_path: &Path,
 ) -> Result<AgentProcessHandle, AgentRunnerError> {
+  tracing::trace!("spawn_sandbox");
   let config = SandboxConfig {
     kernel_path: fc.kernel_path.clone(),
     rootfs_path: fc.rootfs_path.clone(),

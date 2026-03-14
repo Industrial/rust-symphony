@@ -104,6 +104,7 @@ struct RawConfig {
 /// Build ServiceConfig from workflow front matter (e.g. `WorkflowDefinition.config`).
 /// Applies env resolution to `tracker.api_key` and `worktree.root`, then validates.
 pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, ConfigError> {
+  tracing::trace!("from_workflow_config");
   let raw: RawConfig =
     serde_json::from_value(value.clone()).map_err(|e| ConfigError::Deserialize(e.to_string()))?;
 

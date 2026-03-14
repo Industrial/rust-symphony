@@ -9,6 +9,7 @@ use symphony_workspace::worktree_path;
 /// Remove git worktree directories for issues that are already in a terminal state (e.g. closed).
 /// Called once at startup to clean up from previous runs.
 pub async fn run_startup_cleanup(config: &ServiceConfig) {
+  tracing::trace!("run_startup_cleanup");
   let terminal = config.tracker.terminal_states_slice();
   if terminal.is_empty() {
     return;

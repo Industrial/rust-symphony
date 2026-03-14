@@ -40,6 +40,7 @@ pub async fn run_agent_with_protocol(
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
   sandbox_config: Option<&symphony_config::FirecrackerSandboxConfig>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
+  tracing::trace!("run_agent_with_protocol");
   match protocol {
     RunnerProtocol::Codex => {
       run_agent_codex(

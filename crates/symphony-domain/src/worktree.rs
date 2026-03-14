@@ -15,6 +15,7 @@ pub struct Worktree {
 /// Replace any character not in `[A-Za-z0-9._-]` with `_`.
 /// Used for git worktree directory names under the worktree root.
 pub fn sanitize_worktree_key(identifier: &str) -> String {
+  tracing::trace!("sanitize_worktree_key");
   identifier
     .chars()
     .map(|c| {

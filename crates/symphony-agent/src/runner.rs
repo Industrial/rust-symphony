@@ -85,6 +85,7 @@ pub async fn run_agent_codex(
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
   sandbox_config: Option<&FirecrackerSandboxConfig>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
+  tracing::trace!("run_agent_codex");
   let start = std::time::Instant::now();
   let cwd_abs = worktree_path
     .canonicalize()
