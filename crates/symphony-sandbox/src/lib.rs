@@ -509,7 +509,8 @@ mod firecracker {
     }
     let mut stream = stream.ok_or_else(|| {
       SandboxError::VsockConnect(
-        "vsock connect refused after retries (guest may not have vsock or runner not listening)".into(),
+        "vsock connect refused after retries (guest may not have vsock or runner not listening)"
+          .into(),
       )
     })?;
 
@@ -536,25 +537,33 @@ mod firecracker {
     tokio::spawn(async move {
       let mut buf = [0u8; 1 + 4];
       let mut exit_tx = Some(exit_tx);
-      let send_exit = |tx: &mut Option<oneshot::Sender<std::result::Result<ExitStatus, SandboxError>>>, result: std::result::Result<ExitStatus, SandboxError>| {
-        if let Some(sender) = tx.take() {
-          let _ = sender.send(result);
-        }
-      };
+      let send_exit =
+        |tx: &mut Option<oneshot::Sender<std::result::Result<ExitStatus, SandboxError>>>,
+         result: std::result::Result<ExitStatus, SandboxError>| {
+          if let Some(sender) = tx.take() {
+            let _ = sender.send(result);
+          }
+        };
       loop {
         if read_half.read_exact(&mut buf).await.is_err() {
-          send_exit(&mut exit_tx, Err(SandboxError::Protocol(
-            "guest closed connection without exit frame".into(),
-          )));
+          send_exit(
+            &mut exit_tx,
+            Err(SandboxError::Protocol(
+              "guest closed connection without exit frame".into(),
+            )),
+          );
           break;
         }
         let tag = buf[0];
         let len = u32::from_be_bytes(buf[1..5].try_into().unwrap()) as usize;
         let mut payload = vec![0u8; len];
         if len > 0 && read_half.read_exact(&mut payload).await.is_err() {
-          send_exit(&mut exit_tx, Err(SandboxError::Protocol(
-            "guest closed connection while reading frame payload".into(),
-          )));
+          send_exit(
+            &mut exit_tx,
+            Err(SandboxError::Protocol(
+              "guest closed connection while reading frame payload".into(),
+            )),
+          );
           break;
         }
         match tag {

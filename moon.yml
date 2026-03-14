@@ -75,7 +75,6 @@ tasks:
     options:
       cache: false
       outputStyle: buffer-only-failure
-
   # Check documentation
   check-docs:
     description: 'Build docs and run clippy with missing_docs_in_private_items'

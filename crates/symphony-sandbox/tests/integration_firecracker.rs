@@ -44,7 +44,12 @@ fn create_empty_ext4_image() -> Result<PathBuf, String> {
   // 32 MiB image (dd then mkfs.ext4); -O ^resize_inode avoids resize inode checksum issues on small images
   let path_str = path.to_str().expect("utf-8 path");
   let status = std::process::Command::new("dd")
-    .args(["if=/dev/zero", &format!("of={path_str}"), "bs=1M", "count=32"])
+    .args([
+      "if=/dev/zero",
+      &format!("of={path_str}"),
+      "bs=1M",
+      "count=32",
+    ])
     .status()
     .map_err(|e| e.to_string())?;
   if !status.success() {
