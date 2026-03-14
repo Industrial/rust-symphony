@@ -1806,6 +1806,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "symphony-guest-runner"
+version = "0.3.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-vsock",
+]
+
+[[package]]
 name = "symphony-orchestration"
 version = "0.3.1"
 dependencies = [

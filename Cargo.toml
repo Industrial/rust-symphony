@@ -11,6 +11,7 @@ members = [
   "crates/symphony-sandbox",
   "crates/symphony-tracker",
   "crates/symphony-prompt",
+  "crates/symphony-guest-runner",
 ]
 
 # Single version and shared metadata for all workspace crates (inherit with version.workspace = true).

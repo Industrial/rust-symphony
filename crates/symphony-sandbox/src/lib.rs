@@ -59,20 +59,34 @@ pub struct SandboxChild {
   pub stderr: Option<SandboxStderr>,
   /// Receiver for exit status from the guest (filled when process exits).
   exit_rx: oneshot::Receiver<std::result::Result<ExitStatus, SandboxError>>,
+  /// When set, sending triggers VM shutdown (firecracker backend). Cleared when sent.
+  pub(crate) shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
 impl SandboxChild {
   /// Wait for the agent process inside the VM to exit.
   pub async fn wait(&mut self) -> std::result::Result<ExitStatus, SandboxError> {
     tracing::trace!("SandboxChild::wait");
-    match self.exit_rx.try_recv() {
-      Ok(result) => result,
-      Err(oneshot::error::TryRecvError::Closed) => Err(SandboxError::VmExited),
+    let result = match self.exit_rx.try_recv() {
+      Ok(r) => r,
+      Err(oneshot::error::TryRecvError::Closed) => return Err(SandboxError::VmExited),
       Err(oneshot::error::TryRecvError::Empty) => {
         let (_, placeholder) = oneshot::channel();
         let exit_rx = std::mem::replace(&mut self.exit_rx, placeholder);
         exit_rx.await.map_err(|_| SandboxError::VmExited)?
       }
+    };
+    if let Some(tx) = self.shutdown_tx.take() {
+      let _ = tx.send(());
+    }
+    result
+  }
+}
+
+impl Drop for SandboxChild {
+  fn drop(&mut self) {
+    if let Some(tx) = self.shutdown_tx.take() {
+      let _ = tx.send(());
     }
   }
 }
@@ -225,25 +239,360 @@ pub async fn spawn(
   }
 }
 
-/// Firecracker microVM sandbox: VM lifecycle and vsock guest protocol (stub).
+/// Firecracker microVM sandbox: VM lifecycle and vsock guest protocol.
 #[cfg(feature = "firecracker")]
 mod firecracker {
   use super::*;
+  use std::os::unix::process::ExitStatusExt;
+  use std::path::PathBuf;
+  use std::process::ExitStatus;
+  use std::time::{SystemTime, UNIX_EPOCH};
+  use tokio::io::{AsyncReadExt, AsyncWriteExt};
+  use tokio::net::UnixStream;
+  use tokio::sync::mpsc;
 
-  /// Stub: full fctools VM lifecycle (ResourceSystem, VmmInstallation, Vm::prepare/start)
-  /// and vsock connection to guest agent-runner is not yet implemented.
-  /// Returns a clear error so callers can fall back or report.
+  use fctools::{
+    process_spawner::DirectProcessSpawner,
+    runtime::tokio::TokioRuntime,
+    vm::{
+      Vm,
+      configuration::{InitMethod, VmConfiguration, VmConfigurationData},
+      models::{BootSource, Drive, MachineConfiguration, VsockDevice},
+      shutdown::{VmShutdownAction, VmShutdownMethod},
+    },
+    vmm::{
+      arguments::{VmmApiSocket, VmmArguments},
+      executor::unrestricted::UnrestrictedVmmExecutor,
+      installation::VmmInstallation,
+      ownership::VmmOwnershipModel,
+      resource::{MovedResourceType, ResourceType, system::ResourceSystem},
+    },
+  };
+
+  type SandboxVm = Vm<UnrestrictedVmmExecutor, DirectProcessSpawner, TokioRuntime>;
+
+  const GUEST_CID: u32 = 3;
+  const TAG_STDOUT: u8 = 1;
+  const TAG_STDERR: u8 = 2;
+  const TAG_EXIT: u8 = 3;
+
+  fn find_firecracker() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("SYMPHONY_FIRECRACKER") {
+      let p = PathBuf::from(path.trim());
+      if p.is_absolute() && p.exists() {
+        return Some(p);
+      }
+      let out = std::process::Command::new("which")
+        .arg(path.trim())
+        .output()
+        .ok()?;
+      if out.status.success() {
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !s.is_empty() {
+          return Some(PathBuf::from(s));
+        }
+      }
+      return None;
+    }
+    let out = std::process::Command::new("which")
+      .arg("firecracker")
+      .output()
+      .ok()?;
+    if out.status.success() {
+      let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+      if !s.is_empty() {
+        return Some(PathBuf::from(s));
+      }
+    }
+    None
+  }
+
+  fn temp_path(prefix: &str, suffix: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap_or_default()
+      .as_nanos();
+    PathBuf::from(format!("/tmp/{prefix}-{nanos}{suffix}"))
+  }
+
+  /// Demux reader: implements AsyncRead by receiving bytes from a channel (fed by the frame reader task).
+  struct DemuxRead {
+    rx: mpsc::UnboundedReceiver<Vec<u8>>,
+    buf: Option<Vec<u8>>,
+    offset: usize,
+  }
+
+  impl DemuxRead {
+    fn new(rx: mpsc::UnboundedReceiver<Vec<u8>>) -> Self {
+      Self {
+        rx,
+        buf: None,
+        offset: 0,
+      }
+    }
+  }
+
+  impl tokio::io::AsyncRead for DemuxRead {
+    fn poll_read(
+      self: std::pin::Pin<&mut Self>,
+      cx: &mut std::task::Context<'_>,
+      buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+      let this = self.get_mut();
+      loop {
+        if let Some(ref b) = this.buf {
+          let remain = &b[this.offset..];
+          if !remain.is_empty() {
+            let n = remain.len().min(buf.remaining());
+            buf.put_slice(&remain[..n]);
+            this.offset += n;
+            if this.offset >= b.len() {
+              this.buf = None;
+              this.offset = 0;
+            }
+            return std::task::Poll::Ready(Ok(()));
+          }
+        }
+        match this.rx.poll_recv(cx) {
+          std::task::Poll::Ready(Some(chunk)) => {
+            this.buf = Some(chunk);
+            this.offset = 0;
+          }
+          std::task::Poll::Ready(None) => return std::task::Poll::Ready(Ok(())),
+          std::task::Poll::Pending => return std::task::Poll::Pending,
+        }
+      }
+    }
+  }
+
   pub(super) async fn spawn_vm(
-    _config: &SandboxConfig,
-    _command: &str,
+    config: &SandboxConfig,
+    command: &str,
     _worktree_path: &Path,
   ) -> Result<SandboxChild, SandboxError> {
     tracing::trace!("spawn_vm");
-    Err(SandboxError::Unavailable(
-      "Firecracker VM lifecycle (fctools Vm::prepare/start, worktree drive, vsock to guest agent-runner) \
-       is not yet implemented. Use runner.sandbox: none for host process. \
-       See docs for required guest rootfs and protocol."
-        .into(),
-    ))
+    let firecracker_path = find_firecracker().ok_or_else(|| {
+      SandboxError::Unavailable(
+        "Firecracker binary not found. Set SYMPHONY_FIRECRACKER or ensure 'firecracker' is in PATH.".into(),
+      )
+    })?;
+    let installation = VmmInstallation::new(
+      firecracker_path.clone(),
+      firecracker_path.clone(),
+      firecracker_path,
+    );
+
+    let api_socket_path = temp_path("symphony-fc-api", ".sock");
+    let vsock_uds_path = temp_path("symphony-fc-vsock", ".sock");
+
+    let ownership = VmmOwnershipModel::Shared;
+    let mut resource_system = ResourceSystem::new(DirectProcessSpawner, TokioRuntime, ownership);
+
+    let kernel_resource = resource_system
+      .create_resource(
+        config.kernel_path.clone(),
+        ResourceType::Moved(MovedResourceType::Copied),
+      )
+      .map_err(|e| SandboxError::VmStart(e.to_string()))?;
+    let rootfs_resource = resource_system
+      .create_resource(
+        config.rootfs_path.clone(),
+        ResourceType::Moved(MovedResourceType::Copied),
+      )
+      .map_err(|e| SandboxError::VmStart(e.to_string()))?;
+    let worktree_resource = resource_system
+      .create_resource(
+        config.worktree_host_path.clone(),
+        ResourceType::Moved(MovedResourceType::HardLinkedOrCopied),
+      )
+      .map_err(|e| SandboxError::VmStart(e.to_string()))?;
+    let vsock_uds_resource = resource_system
+      .create_resource(vsock_uds_path.clone(), ResourceType::Produced)
+      .map_err(|e| SandboxError::VmStart(e.to_string()))?;
+
+    let boot_source = BootSource {
+      kernel_image: kernel_resource,
+      boot_args: Some("console=ttyS0 reboot=k panic=1 pci=off".into()),
+      initrd: None,
+    };
+    let drives = vec![
+      Drive {
+        drive_id: "rootfs".to_string(),
+        is_root_device: true,
+        cache_type: None,
+        partuuid: None,
+        is_read_only: Some(true),
+        block: Some(rootfs_resource),
+        rate_limiter: None,
+        io_engine: None,
+        socket: None,
+      },
+      Drive {
+        drive_id: "worktree".to_string(),
+        is_root_device: false,
+        cache_type: None,
+        partuuid: None,
+        is_read_only: Some(false),
+        block: Some(worktree_resource),
+        rate_limiter: None,
+        io_engine: None,
+        socket: None,
+      },
+    ];
+    let machine_config = MachineConfiguration {
+      vcpu_count: 1,
+      mem_size_mib: 128,
+      smt: None,
+      track_dirty_pages: Some(true),
+      huge_pages: None,
+    };
+    let vsock_device = VsockDevice {
+      guest_cid: GUEST_CID,
+      uds: vsock_uds_resource,
+    };
+    let vm_data = VmConfigurationData {
+      boot_source,
+      drives,
+      machine_configuration: machine_config,
+      cpu_template: None,
+      network_interfaces: vec![],
+      balloon_device: None,
+      vsock_device: Some(vsock_device),
+      logger_system: None,
+      metrics_system: None,
+      mmds_configuration: None,
+      entropy_device: None,
+    };
+    let vm_config = VmConfiguration::New {
+      init_method: InitMethod::ViaApiCalls,
+      data: vm_data,
+    };
+
+    let executor =
+      UnrestrictedVmmExecutor::new(VmmArguments::new(VmmApiSocket::Enabled(api_socket_path)));
+
+    let mut vm: SandboxVm = Vm::prepare(executor, resource_system, installation, vm_config)
+      .await
+      .map_err(|e: fctools::vm::VmError| SandboxError::VmStart(e.to_string()))?;
+
+    vm.start(std::time::Duration::from_secs(30))
+      .await
+      .map_err(|e: fctools::vm::VmError| SandboxError::VmStart(e.to_string()))?;
+
+    let vsock_path = vm
+      .get_configuration()
+      .get_data()
+      .vsock_device
+      .as_ref()
+      .and_then(|v| v.uds.get_effective_path())
+      .map(PathBuf::from)
+      .ok_or_else(|| SandboxError::VsockConnect("vsock UDS path not available".into()))?;
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+
+    const VSOCK_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+    let mut stream = tokio::time::timeout(VSOCK_CONNECT_TIMEOUT, UnixStream::connect(&vsock_path))
+      .await
+      .map_err(|_| {
+        SandboxError::VsockConnect("vsock connect timeout (guest may not be ready)".into())
+      })?
+      .map_err(|e: std::io::Error| SandboxError::VsockConnect(e.to_string()))?;
+
+    let request = serde_json::json!({
+      "command": command,
+      "cwd": config.worktree_guest_path,
+    });
+    let line = format!("{}\n", request);
+    stream
+      .write_all(line.as_bytes())
+      .await
+      .map_err(|e: std::io::Error| SandboxError::Protocol(e.to_string()))?;
+    stream
+      .flush()
+      .await
+      .map_err(|e: std::io::Error| SandboxError::Protocol(e.to_string()))?;
+
+    let (stdout_tx, stdout_rx) = mpsc::unbounded_channel();
+    let (stderr_tx, stderr_rx) = mpsc::unbounded_channel();
+    let (exit_tx, exit_rx) = oneshot::channel();
+
+    let (mut read_half, write_half) = stream.into_split();
+
+    tokio::spawn(async move {
+      let mut buf = [0u8; 1 + 4];
+      let mut exit_sent = false;
+      loop {
+        if read_half.read_exact(&mut buf).await.is_err() {
+          if !exit_sent {
+            let _ = exit_tx.send(Err(SandboxError::Protocol(
+              "guest closed connection without exit frame".into(),
+            )));
+          }
+          break;
+        }
+        let tag = buf[0];
+        let len = u32::from_be_bytes(buf[1..5].try_into().unwrap()) as usize;
+        let mut payload = vec![0u8; len];
+        if len > 0 && read_half.read_exact(&mut payload).await.is_err() {
+          if !exit_sent {
+            let _ = exit_tx.send(Err(SandboxError::Protocol(
+              "guest closed connection while reading frame payload".into(),
+            )));
+          }
+          break;
+        }
+        match tag {
+          TAG_STDOUT => {
+            let _ = stdout_tx.send(payload);
+          }
+          TAG_STDERR => {
+            let _ = stderr_tx.send(payload);
+          }
+          TAG_EXIT => {
+            let code = if payload.len() >= 4 {
+              i32::from_be_bytes(payload[0..4].try_into().unwrap())
+            } else {
+              -1
+            };
+            let raw = ((code as u32) & 0xff) << 8;
+            let status = ExitStatus::from_raw(raw as i32);
+            let _ = exit_tx.send(Ok(status));
+            exit_sent = true;
+            break;
+          }
+          _ => {}
+        }
+      }
+    });
+
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let mut vm_guard = vm;
+    tokio::spawn(async move {
+      let _ = shutdown_rx.await;
+      let timeout = std::time::Duration::from_secs(5);
+      let _ = vm_guard
+        .shutdown([
+          VmShutdownAction {
+            method: VmShutdownMethod::CtrlAltDel,
+            timeout: Some(timeout),
+            graceful: true,
+          },
+          VmShutdownAction {
+            method: VmShutdownMethod::PauseThenKill,
+            timeout: Some(timeout / 2),
+            graceful: false,
+          },
+        ])
+        .await;
+      let _ = vm_guard.cleanup().await;
+    });
+
+    Ok(SandboxChild {
+      stdin: Some(SandboxStdin::new(Box::new(write_half))),
+      stdout: Some(SandboxStdout::new(Box::new(DemuxRead::new(stdout_rx)))),
+      stderr: Some(SandboxStderr::new(Box::new(DemuxRead::new(stderr_rx)))),
+      exit_rx,
+      shutdown_tx: Some(shutdown_tx),
+    })
   }
 }
