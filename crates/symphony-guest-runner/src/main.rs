@@ -55,7 +55,7 @@ async fn handle_one(
   read_half.read_line(&mut line).await?;
   let req: RunRequest = serde_json::from_str(line.trim())?;
 
-  let mut child = Command::new("sh")
+  let mut child = Command::new("/bin/sh")
     .args(["-c", &req.command])
     .current_dir(&req.cwd)
     .stdin(Stdio::piped())
@@ -121,12 +121,16 @@ async fn handle_one(
   let _ = stdin_task.await;
   let _ = stdout_task.await;
   let _ = stderr_task.await;
+  // Give the host time to receive stdout/stderr frames before we send TAG_EXIT (avoids vsock reordering).
+  tokio::time::sleep(std::time::Duration::from_millis(100)).await;
   send_frame(
     &mut *write_half.lock().await,
     TAG_EXIT,
     &(code as i32).to_be_bytes(),
   )
   .await?;
+  // Keep connection open briefly so the host can read the exit frame before we drop the stream.
+  tokio::time::sleep(std::time::Duration::from_millis(50)).await;
   Ok(())
 }
 

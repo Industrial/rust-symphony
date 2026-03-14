@@ -488,19 +488,34 @@ mod firecracker {
       .map(PathBuf::from)
       .ok_or_else(|| SandboxError::VsockConnect("vsock UDS path not available".into()))?;
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-
-    const VSOCK_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-    let mut stream = tokio::time::timeout(VSOCK_CONNECT_TIMEOUT, UnixStream::connect(&vsock_path))
-      .await
-      .map_err(|_| {
-        SandboxError::VsockConnect("vsock connect timeout (guest may not be ready)".into())
-      })?
-      .map_err(|e: std::io::Error| SandboxError::VsockConnect(e.to_string()))?;
+    const RETRY_INTERVAL_MS: u64 = 400;
+    const RETRY_ATTEMPTS: u32 = 40;
+    let mut stream = None;
+    for attempt in 0..RETRY_ATTEMPTS {
+      if attempt > 0 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(RETRY_INTERVAL_MS)).await;
+      }
+      match UnixStream::connect(&vsock_path).await {
+        Ok(s) => {
+          stream = Some(s);
+          break;
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
+          tracing::trace!(attempt = attempt + 1, "vsock connect refused, retrying");
+          continue;
+        }
+        Err(e) => return Err(SandboxError::VsockConnect(e.to_string())),
+      }
+    }
+    let mut stream = stream.ok_or_else(|| {
+      SandboxError::VsockConnect(
+        "vsock connect refused after retries (guest may not have vsock or runner not listening)".into(),
+      )
+    })?;
 
     let request = serde_json::json!({
       "command": command,
-      "cwd": config.worktree_guest_path,
+      "cwd": config.worktree_guest_path.display().to_string(),
     });
     let line = format!("{}\n", request);
     stream
@@ -520,25 +535,26 @@ mod firecracker {
 
     tokio::spawn(async move {
       let mut buf = [0u8; 1 + 4];
-      let mut exit_sent = false;
+      let mut exit_tx = Some(exit_tx);
+      let send_exit = |tx: &mut Option<oneshot::Sender<std::result::Result<ExitStatus, SandboxError>>>, result: std::result::Result<ExitStatus, SandboxError>| {
+        if let Some(sender) = tx.take() {
+          let _ = sender.send(result);
+        }
+      };
       loop {
         if read_half.read_exact(&mut buf).await.is_err() {
-          if !exit_sent {
-            let _ = exit_tx.send(Err(SandboxError::Protocol(
-              "guest closed connection without exit frame".into(),
-            )));
-          }
+          send_exit(&mut exit_tx, Err(SandboxError::Protocol(
+            "guest closed connection without exit frame".into(),
+          )));
           break;
         }
         let tag = buf[0];
         let len = u32::from_be_bytes(buf[1..5].try_into().unwrap()) as usize;
         let mut payload = vec![0u8; len];
         if len > 0 && read_half.read_exact(&mut payload).await.is_err() {
-          if !exit_sent {
-            let _ = exit_tx.send(Err(SandboxError::Protocol(
-              "guest closed connection while reading frame payload".into(),
-            )));
-          }
+          send_exit(&mut exit_tx, Err(SandboxError::Protocol(
+            "guest closed connection while reading frame payload".into(),
+          )));
           break;
         }
         match tag {
@@ -549,16 +565,17 @@ mod firecracker {
             let _ = stderr_tx.send(payload);
           }
           TAG_EXIT => {
-            let code = if payload.len() >= 4 {
-              i32::from_be_bytes(payload[0..4].try_into().unwrap())
-            } else {
-              -1
-            };
-            let raw = ((code as u32) & 0xff) << 8;
-            let status = ExitStatus::from_raw(raw as i32);
-            let _ = exit_tx.send(Ok(status));
-            exit_sent = true;
-            break;
+            if let Some(sender) = exit_tx.take() {
+              let code = if payload.len() >= 4 {
+                i32::from_be_bytes(payload[0..4].try_into().unwrap())
+              } else {
+                -1
+              };
+              let raw = ((code as u32) & 0xff) << 8;
+              let status = ExitStatus::from_raw(raw as i32);
+              let _ = sender.send(Ok(status));
+            }
+            // Do not break: keep reading in case vsock delivered TAG_EXIT before TAG_STDOUT/TAG_STDERR.
           }
           _ => {}
         }

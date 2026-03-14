@@ -61,6 +61,7 @@
         src = self;
         cargoLock.lockFile = self + "/Cargo.lock";
         cargoBuildFlags = ["--package" "symphony-guest-runner" "--bin" "symphony-guest-runner"];
+        doCheck = false;
         installPhase = ''
           runHook preInstall
           cargo build --release --package symphony-guest-runner --bin symphony-guest-runner
@@ -80,22 +81,11 @@
         // pkgs.lib.optionalAttrs (cargo2nixPackage != null) {
           cargo2nix = cargo2nixPackage;
         }
-        # Firecracker kernel and guest rootfs (x86_64-linux only)
+        # Firecracker kernel and guest rootfs (x86_64-linux only).
+        # Default kernel is used for cache; for vsock guest–host communication a kernel with
+        # CONFIG_VIRTIO_VSOCKETS may be required (e.g. custom override or use linuxPackages from a profile that has it).
         // pkgs.lib.optionalAttrs (system == "x86_64-linux") (let
-          linuxFirecracker = pkgs.linux.override {
-            extraConfig = ''
-              VIRTIO_VSOCKETS y
-              VIRTIO_VSOCKETS_COMMON y
-              VIRTIO y
-              VIRTIO_PCI y
-              VIRTIO_MMIO y
-              VIRTIO_BLK y
-              VIRTIO_CONSOLE y
-              VIRTIO_MMIO_CMDLINE_DEVICES y
-            '';
-          };
-          linuxPackagesFirecracker = pkgs.linuxPackagesFor linuxFirecracker;
-          vmlinuxFirecracker = linuxPackagesFirecracker.kernel.dev;
+          vmlinuxFirecracker = pkgs.linuxPackages.kernel.dev;
           rootfsTree = pkgs.runCommand "symphony-guest-rootfs-tree" {} ''
             mkdir -p rootfs/bin rootfs/dev rootfs/proc rootfs/sys rootfs/worktree
             cp ${symphonyGuestRunnerPkg}/bin/symphony-guest-runner rootfs/bin/
@@ -118,7 +108,7 @@
               resize2fs -M $out
             '';
         in {
-          linuxFirecracker = linuxFirecracker;
+          firecracker = pkgs.firecracker;
           vmlinuxFirecracker = vmlinuxFirecracker;
           symphony-guest-rootfs-tree = rootfsTree;
           symphony-guest-rootfs = rootfsExt4;

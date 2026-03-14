@@ -153,6 +153,10 @@ in {
     git
     gh
 
+    # Sandbox E2E tests: create ext4 worktree images (dd + mkfs.ext4)
+    coreutils
+    e2fsprogs
+
     # Build system
     moon
 

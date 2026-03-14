@@ -64,6 +64,18 @@ tasks:
     options:
       cache: true
       outputStyle: buffer-only-failure
+  # Sandbox E2E: build Nix kernel/rootfs/firecracker, run Firecracker integration tests (x86_64-linux, requires KVM).
+  test-e2e:
+    description: 'Run sandbox E2E tests (kernel + rootfs + Firecracker); x86_64-linux, requires KVM'
+    command: './bin/run-sandbox-e2e'
+    inputs:
+      - 'bin/run-sandbox-e2e'
+      - 'flake.nix'
+      - 'crates/symphony-sandbox/**'
+    options:
+      cache: false
+      outputStyle: buffer-only-failure
+
   # Check documentation
   check-docs:
     description: 'Build docs and run clippy with missing_docs_in_private_items'
