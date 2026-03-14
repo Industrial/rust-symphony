@@ -100,6 +100,34 @@ Use **mockall** (or manual mocks) for tracker and workspace; drive the orchestra
 
 ---
 
+## 17.9 Sandbox (Firecracker) integration and E2E
+
+Tests live in `crates/symphony-sandbox/tests/integration_firecracker.rs`. When the required env vars are **not** set, tests skip (return early) and pass, so default `cargo test` is safe in CI.
+
+**How to run sandbox / E2E tests:**
+
+1. **Without kernel/rootfs (skip):**  
+   `devenv shell -- cargo test -p symphony-sandbox --features firecracker --test integration_firecracker`  
+   Both tests skip and pass.
+
+2. **Full run (requires Firecracker, kernel, rootfs):**  
+   Set env then run the same command:
+   ```bash
+   export SYMPHONY_SANDBOX_INTEGRATION=1
+   export SYMPHONY_KERNEL_PATH=/path/to/vmlinux
+   export SYMPHONY_ROOTFS_PATH=/path/to/rootfs.ext4
+   devenv shell -- cargo test -p symphony-sandbox --features firecracker --test integration_firecracker
+   ```
+
+**Tests:**
+
+- **run_command_in_vm_stdout_and_exit:** Runs a command in the VM (temp dir as worktree), asserts stdout and exit code.
+- **e2e_sandbox_with_worktree_and_branch:** E2E: creates a git repo, adds a worktree on branch `symphony/issue-e2e`, runs the sandbox with that worktree path and asserts command output (full chain: worktree + branch + sandbox).
+
+Kernel and rootfs can be built via the project’s Nix setup; see repo docs for paths.
+
+---
+
 ## References
 
 - [SPEC.md](SPEC.md) §17 — Test and Validation Matrix
