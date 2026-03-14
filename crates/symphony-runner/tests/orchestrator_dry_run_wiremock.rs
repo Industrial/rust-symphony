@@ -33,11 +33,11 @@ fn service_config_with_endpoint(endpoint: &str) -> ServiceConfig {
       terminal_states: Some(vec!["closed".to_string()]),
       include_labels: None,
       exclude_labels: None,
-      claim_label: None,
-      pr_open_label: None,
+      claim_label: "symphony-claimed".to_string(),
+      pr_open_label: "pr-open".to_string(),
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
-      pr_base_branch: None,
+      pr_base_branch: "main".to_string(),
     },
     runner: RunnerConfig {
       command: "echo agent".to_string(),
@@ -49,7 +49,7 @@ fn service_config_with_endpoint(endpoint: &str) -> ServiceConfig {
     polling: PollingConfig::default(),
     worktree: WorktreeConfig {
       root: std::env::temp_dir().join("symphony_worktrees_test"),
-      main_repo_path: None,
+      main_repo_path: std::env::temp_dir().join("symphony_wiremock_main"),
     },
     hooks: HooksConfig::default(),
     agent: AgentConfig::default(),

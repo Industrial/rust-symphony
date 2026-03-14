@@ -9,6 +9,9 @@ pub enum ConfigValidationError {
 
   #[error("runner config: {0}")]
   Runner(ValidationErrors),
+
+  #[error("worktree config: {0}")]
+  Worktree(String),
 }
 
 impl From<ValidationErrors> for ConfigValidationError {
@@ -24,6 +27,9 @@ pub enum ConfigError {
 
   #[error("validation: {0}")]
   Validation(#[from] ConfigValidationError),
+
+  #[error("invalid config: {0}")]
+  InvalidConfig(String),
 
   #[error("deserialize: {0}")]
   Deserialize(String),
@@ -48,11 +54,11 @@ mod tests {
       terminal_states: None,
       include_labels: None,
       exclude_labels: None,
-      claim_label: None,
-      pr_open_label: None,
+      claim_label: "claimed".into(),
+      pr_open_label: "pr-open".into(),
       fix_pr_head_branch_pattern: None,
       mention_handle: None,
-      pr_base_branch: None,
+      pr_base_branch: "main".into(),
     };
     let errs = t.validate().unwrap_err();
     let e = ConfigValidationError::Tracker(errs);

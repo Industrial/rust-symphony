@@ -41,7 +41,7 @@ A **claim** is the guarantee that at most one worker is assigned to an issue at 
 
 ### A.2.1 Claim label
 
-- **Config key:** `tracker.claim_label` (optional; string).
+- **Config key:** `tracker.claim_label` (**required**; string).
 - **Semantics:** The label that the coding agent MUST add to the issue when it “claims” the issue (typically as its first step). This label SHOULD be listed in `tracker.exclude_labels` so that once added, the issue is no longer a candidate and no other worker (and no re-dispatch after restart) will pick it up.
 - **Orchestrator:** The orchestrator remains **read-only** with respect to the tracker. It does not add or remove labels. The coding agent adds the claim label using whatever tools it has (e.g. GitHub CLI, API) as instructed by the workflow prompt.
 
@@ -67,14 +67,15 @@ The workflow MAY define a PR-driven handoff: the worker implements the task on a
 
 ### A.3.0 Base branch (worker branches and PR target)
 
-- **Config key:** `tracker.pr_base_branch` (optional; string).
-- **Semantics:** The branch from which worker branches MUST be created and to which pull requests MUST target. When unset, the default is `main`. Repositories that use a different default (e.g. `develop`) MAY set this key.
+- **Config key:** `tracker.pr_base_branch` (**required**; string).
+- **Semantics:** The branch from which worker branches MUST be created and to which pull requests MUST target (e.g. `main` or `develop`).
 - **Worker behaviour:** The worker MUST create its per-issue branch from this base (e.g. fetch and checkout the base branch, then create `symphony/issue-<number>` from it). Git worktree setup (e.g. `after_create` hook) and/or prompt instructions MUST make this explicit.
 - **PR target:** When opening a PR, the worker MUST target this same branch (e.g. `gh pr create --base <pr_base_branch>` or equivalent).
 
 ### A.3.1 Branch and work
 
 - The worker works in the per-issue workspace (e.g. a git worktree). It MUST use a single branch per issue (e.g. `symphony/issue-<number>` or a configurable naming convention), created from the configured base branch (A.3.0). All changes are committed on that branch.
+- **Config:** `worktree.main_repo_path` is required so the orchestrator can create a git worktree and per-issue branch before dispatching the agent.
 
 ### A.3.2 Pull request
 
@@ -93,10 +94,10 @@ The workflow MAY define a PR-driven handoff: the worker implements the task on a
 
 - The human reviews and merges the PR. The tracker (e.g. GitHub) closes the issue when the PR is merged (when “Fixes #N” is used). The issue enters a terminal state; the orchestrator’s existing behaviour (terminal-state handling, startup cleanup) applies. No additional specification is required.
 
-### A.3.6 Optional: PR-open label
+### A.3.6 PR-open label
 
-- **Config key:** `tracker.pr_open_label` (optional; string).
-- **Semantics:** If present, the agent MAY add this label when it has opened a PR. This label SHOULD be in `exclude_labels` so that “PR open, waiting for merge” is not re-dispatched. Use of this label is for visibility and filtering; the claim label alone is sufficient to prevent re-dispatch if it is never removed until the issue is closed.
+- **Config key:** `tracker.pr_open_label` (**required**; string).
+- **Semantics:** The agent MAY add this label when it has opened a PR. This label SHOULD be in `exclude_labels` so that “PR open, waiting for merge” is not re-dispatched. Use of this label is for visibility and filtering; the claim label alone is sufficient to prevent re-dispatch if it is never removed until the issue is closed.
 
 ---
 
@@ -115,8 +116,8 @@ The workflow MAY define a PR-driven handoff: the worker implements the task on a
 |-----|---------|------|---------|
 | `tracker.include_labels` | A.1.1 | optional list of strings | Candidate must have at least one of these labels. |
 | `tracker.exclude_labels` | A.1.2 | optional list of strings | Candidate must have none of these labels. |
-| `tracker.claim_label` | A.2.1 | optional string | Label the agent adds when claiming; should be in exclude_labels. |
-| `tracker.pr_base_branch` | A.3.0 | optional string | Base branch for worker branches and PR target; default `main`. |
-| `tracker.pr_open_label` | A.3.6 | optional string | Optional label when PR is open; should be in exclude_labels if used. |
+| `tracker.claim_label` | A.2.1 | **required** string | Label the agent adds when claiming; auto-excluded from candidates. |
+| `tracker.pr_base_branch` | A.3.0 | **required** string | Base branch for worker branches and PR target. |
+| `tracker.pr_open_label` | A.3.6 | **required** string | Label for PR-open visibility; should be in exclude_labels. |
 
-All keys are optional. When absent, behaviour matches the base SPEC (no label-based filtering, no claim label semantics). The prompt template MAY expose the effective base branch (e.g. as a Liquid variable `workflow.pr_base_branch`) so the agent can use it for checkout and `gh pr create --base`.
+The keys `tracker.claim_label`, `tracker.pr_open_label`, and `tracker.pr_base_branch` are required; config load fails if any is missing. The prompt template MAY expose the effective base branch (e.g. as a Liquid variable `workflow.pr_base_branch`) so the agent can use it for checkout and `gh pr create --base`.

@@ -77,11 +77,11 @@ mod tests {
         terminal_states: None,
         include_labels: None,
         exclude_labels: None,
-        claim_label: None,
-        pr_open_label: None,
+        claim_label: "symphony-claimed".into(),
+        pr_open_label: "pr-open".into(),
         fix_pr_head_branch_pattern: None,
         mention_handle: None,
-        pr_base_branch: None,
+        pr_base_branch: "main".into(),
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),
@@ -93,7 +93,7 @@ mod tests {
       polling: symphony_config::PollingConfig::default(),
       worktree: symphony_config::WorktreeConfig {
         root: std::env::temp_dir().join("symphony_reload_test"),
-        main_repo_path: None,
+        main_repo_path: std::env::temp_dir().join("symphony_reload_main"),
       },
       hooks: symphony_config::HooksConfig::default(),
       agent: symphony_config::AgentConfig::default(),

@@ -7,6 +7,80 @@ fn symphony_bin() -> PathBuf {
   PathBuf::from(env!("CARGO_BIN_EXE_symphony"))
 }
 
+/// Workflow YAML missing a required key (tracker.claim_label) must cause the binary to exit non-zero.
+#[test]
+fn cli_workflow_missing_required_config_exits_nonzero() {
+  let dir = tempfile::tempdir().expect("tempdir");
+  let workflow_path = dir.path().join("WORKFLOW.md");
+  let content = r#"---
+tracker:
+  repo: "owner/repo"
+  api_key: "test-key"
+  pr_open_label: "pr-open"
+  pr_base_branch: "main"
+runner:
+  command: "echo agent"
+worktree:
+  root: "."
+  main_repo_path: "."
+---
+# prompt
+"#;
+  std::fs::write(&workflow_path, content).expect("write fixture");
+  let output = Command::new(symphony_bin())
+    .arg(&workflow_path)
+    .output()
+    .expect("spawn symphony");
+  assert!(
+    !output.status.success(),
+    "missing required config (claim_label) should exit non-zero; stderr: {}",
+    String::from_utf8_lossy(&output.stderr)
+  );
+  let stderr = String::from_utf8_lossy(&output.stderr);
+  assert!(
+    stderr.contains("claim_label") || stderr.contains("required"),
+    "stderr should mention the missing key or 'required'; stderr: {}",
+    stderr
+  );
+}
+
+/// Workflow with worktree but no worktree.root must cause the binary to exit non-zero.
+#[test]
+fn cli_workflow_missing_worktree_root_exits_nonzero() {
+  let dir = tempfile::tempdir().expect("tempdir");
+  let workflow_path = dir.path().join("WORKFLOW.md");
+  let content = r#"---
+tracker:
+  repo: "owner/repo"
+  api_key: "test-key"
+  claim_label: "claimed"
+  pr_open_label: "pr-open"
+  pr_base_branch: "main"
+runner:
+  command: "echo agent"
+worktree:
+  main_repo_path: "."
+---
+# prompt
+"#;
+  std::fs::write(&workflow_path, content).expect("write fixture");
+  let output = Command::new(symphony_bin())
+    .arg(&workflow_path)
+    .output()
+    .expect("spawn symphony");
+  assert!(
+    !output.status.success(),
+    "missing worktree.root should exit non-zero; stderr: {}",
+    String::from_utf8_lossy(&output.stderr)
+  );
+  let stderr = String::from_utf8_lossy(&output.stderr);
+  assert!(
+    stderr.contains("worktree") || stderr.contains("required"),
+    "stderr should mention worktree or 'required'; stderr: {}",
+    stderr
+  );
+}
+
 #[test]
 fn cli_missing_workflow_path_exits_nonzero() {
   let status = Command::new(symphony_bin())

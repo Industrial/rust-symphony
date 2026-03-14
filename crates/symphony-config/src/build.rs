@@ -106,6 +106,25 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
   let api_key_raw = tracker.api_key.unwrap_or_default();
   let api_key = resolve_var(&api_key_raw).trim().to_string();
 
+  let claim_label = tracker
+    .claim_label
+    .as_ref()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+    .ok_or_else(|| ConfigError::InvalidConfig("tracker.claim_label is required".into()))?;
+  let pr_open_label = tracker
+    .pr_open_label
+    .as_ref()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+    .ok_or_else(|| ConfigError::InvalidConfig("tracker.pr_open_label is required".into()))?;
+  let pr_base_branch = tracker
+    .pr_base_branch
+    .as_ref()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+    .ok_or_else(|| ConfigError::InvalidConfig("tracker.pr_base_branch is required".into()))?;
+
   let tracker_config = TrackerConfig {
     repo,
     api_key,
@@ -118,11 +137,11 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
       .or_else(|| Some(vec!["closed".to_string()])),
     include_labels: tracker.include_labels,
     exclude_labels: tracker.exclude_labels,
-    claim_label: tracker.claim_label,
-    pr_open_label: tracker.pr_open_label,
+    claim_label,
+    pr_open_label,
     fix_pr_head_branch_pattern: tracker.fix_pr_head_branch_pattern,
     mention_handle: tracker.mention_handle,
-    pr_base_branch: tracker.pr_base_branch,
+    pr_base_branch,
   };
 
   let runner_raw = raw
@@ -153,22 +172,39 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     })
     .unwrap_or_default();
 
-  let worktree_root = match raw
+  let worktree_root_raw = raw
     .worktree
     .as_ref()
     .and_then(|w| w.root.as_ref())
-    .filter(|s| !s.trim().is_empty())
-  {
-    Some(s) => resolve_worktree_root(s)?,
-    None => std::env::temp_dir().join("symphony_worktrees"),
+    .map(|s| s.trim())
+    .filter(|s| !s.is_empty());
+  let worktree_root = match worktree_root_raw {
+    Some(s) => resolve_worktree_root(s)
+      .map_err(|e| ConfigError::InvalidConfig(format!("worktree.root resolution failed: {}", e)))?,
+    None => {
+      return Err(ConfigError::InvalidConfig(
+        "worktree.root is required".into(),
+      ));
+    }
   };
-  let main_repo_path = raw
+  let main_repo_path_raw = raw
     .worktree
     .as_ref()
     .and_then(|w| w.main_repo_path.as_ref())
-    .filter(|s| !s.trim().is_empty())
-    .map(|s| resolve_worktree_root(s))
-    .transpose()?;
+    .map(|s| s.trim())
+    .filter(|s| !s.is_empty());
+  let main_repo_path = match main_repo_path_raw {
+    Some(s) => resolve_worktree_root(s).map_err(|e| {
+      ConfigError::InvalidConfig(format!("worktree.main_repo_path resolution failed: {}", e))
+    })?,
+    None => {
+      return Err(ConfigError::InvalidConfig(
+        "worktree.main_repo_path is required for worker development (git worktree and branch). \
+         Set worktree.main_repo_path to the path of the main git repository."
+          .into(),
+      ));
+    }
+  };
   let worktree_config = WorktreeConfig {
     root: worktree_root,
     main_repo_path,
@@ -221,8 +257,9 @@ mod tests {
   #[test]
   fn from_workflow_config_success() {
     let value = serde_json::json!({
-        "tracker": { "repo": "owner/repo", "api_key": "test-key" },
-        "runner": { "command": "codex app-server" }
+        "tracker": { "repo": "owner/repo", "api_key": "test-key", "claim_label": "symphony-claimed", "pr_open_label": "pr-open", "pr_base_branch": "main" },
+        "runner": { "command": "codex app-server" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(config.tracker.repo, "owner/repo");
@@ -234,8 +271,9 @@ mod tests {
   #[test]
   fn from_workflow_config_runner_type_acp() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "agent acp", "type": "acp" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "claimed", "pr_open_label": "pr-open", "pr_base_branch": "main" },
+        "runner": { "command": "agent acp", "type": "acp" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(config.runner.runner_type, RunnerType::Acp);
@@ -245,8 +283,9 @@ mod tests {
   #[test]
   fn from_workflow_config_runner_type_cli() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "cursor-agent -p --output-format stream-json", "type": "cli" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "claimed", "pr_open_label": "pr-open", "pr_base_branch": "main" },
+        "runner": { "command": "cursor-agent -p --output-format stream-json", "type": "cli" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(config.runner.runner_type, RunnerType::Cli);
@@ -262,8 +301,9 @@ mod tests {
   #[test]
   fn from_workflow_config_empty_api_key_fails_validation() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "", "claim_label": "claimed", "pr_open_label": "pr-open", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let r = from_workflow_config(&value);
     assert!(matches!(r, Err(ConfigError::Validation(_))));
@@ -273,8 +313,9 @@ mod tests {
   fn from_workflow_config_resolves_api_key_var() {
     std::env::set_var("TEST_GH_KEY", "resolved-secret");
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "$TEST_GH_KEY" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "$TEST_GH_KEY", "claim_label": "claimed", "pr_open_label": "pr-open", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     std::env::remove_var("TEST_GH_KEY");
@@ -284,8 +325,9 @@ mod tests {
   #[test]
   fn from_workflow_config_polling_defaults() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "claimed", "pr_open_label": "pr-open", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(config.polling.interval_ms, 30_000);
@@ -294,8 +336,9 @@ mod tests {
   #[test]
   fn from_workflow_config_polling_explicit() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "claimed", "pr_open_label": "pr-open", "pr_base_branch": "main" },
         "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." },
         "polling": { "interval_ms": 60_000 }
     });
     let config = from_workflow_config(&value).unwrap();
@@ -303,23 +346,39 @@ mod tests {
   }
 
   #[test]
-  fn from_workflow_config_worktree_default() {
+  fn from_workflow_config_worktree_root_required() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "main_repo_path": "." }
+    });
+    let r = from_workflow_config(&value);
+    assert!(
+      matches!(r, Err(ConfigError::InvalidConfig(ref s)) if s.contains("worktree.root")),
+      "expected InvalidConfig when worktree.root omitted, got {:?}",
+      r
+    );
+  }
+
+  #[test]
+  fn from_workflow_config_worktree_root_and_main_repo_path() {
+    let value = serde_json::json!({
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert!(config.worktree.root.ends_with("symphony_worktrees"));
     assert!(config.worktree.root.is_absolute());
+    assert!(!config.worktree.main_repo_path.as_os_str().is_empty());
   }
 
   #[test]
   fn from_workflow_config_worktree_root_resolved() {
     std::env::set_var("SYMPHONY_WS", "my_ws_dir");
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
         "runner": { "command": "c" },
-        "worktree": { "root": "$SYMPHONY_WS" }
+        "worktree": { "root": "$SYMPHONY_WS", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     std::env::remove_var("SYMPHONY_WS");
@@ -330,8 +389,9 @@ mod tests {
   #[test]
   fn from_workflow_config_hooks() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
         "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." },
         "hooks": {
             "after_create": "echo created",
             "timeout_ms": 90_000
@@ -345,8 +405,9 @@ mod tests {
   #[test]
   fn from_workflow_config_agent_defaults() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(config.agent.max_concurrent_agents, 10);
@@ -358,8 +419,9 @@ mod tests {
   #[test]
   fn from_workflow_config_agent_and_state_cap_normalized() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
         "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." },
         "agent": {
             "max_concurrent_agents": 5,
             "max_turns": 30,
@@ -387,8 +449,9 @@ mod tests {
   #[test]
   fn from_workflow_config_tracker_include_exclude_labels_omitted() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert!(config.tracker.include_labels.is_none());
@@ -401,10 +464,14 @@ mod tests {
         "tracker": {
             "repo": "r",
             "api_key": "k",
+            "claim_label": "c",
+            "pr_open_label": "p",
+            "pr_base_branch": "main",
             "include_labels": ["symphony", "bot"],
             "exclude_labels": ["symphony-claimed", "wip"]
         },
-        "runner": { "command": "c" }
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(
@@ -420,7 +487,8 @@ mod tests {
   #[test]
   fn from_workflow_config_tracker_empty_label_arrays() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k", "include_labels": [], "exclude_labels": [] },
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main", "include_labels": [], "exclude_labels": [] },
+        "worktree": { "root": ".", "main_repo_path": "." },
         "runner": { "command": "c" }
     });
     let config = from_workflow_config(&value).unwrap();
@@ -429,53 +497,63 @@ mod tests {
   }
 
   #[test]
-  fn from_workflow_config_tracker_claim_label_omitted() {
+  fn from_workflow_config_tracker_claim_label_missing_fails() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "pr_open_label": "p", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
-    let config = from_workflow_config(&value).unwrap();
-    assert!(config.tracker.claim_label.is_none());
+    let r = from_workflow_config(&value);
+    assert!(
+      matches!(r, Err(ConfigError::InvalidConfig(ref s)) if s.contains("claim_label")),
+      "expected InvalidConfig when claim_label omitted, got {:?}",
+      r
+    );
   }
 
   #[test]
   fn from_workflow_config_tracker_claim_label_parsed() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k", "claim_label": "symphony-claimed" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "symphony-claimed", "pr_open_label": "p", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert_eq!(
-      config.tracker.claim_label.as_deref(),
-      Some("symphony-claimed")
-    );
+    assert_eq!(config.tracker.claim_label, "symphony-claimed");
   }
 
   #[test]
-  fn from_workflow_config_tracker_pr_open_label_omitted() {
+  fn from_workflow_config_tracker_pr_open_label_missing_fails() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
-    let config = from_workflow_config(&value).unwrap();
-    assert!(config.tracker.pr_open_label.is_none());
+    let r = from_workflow_config(&value);
+    assert!(
+      matches!(r, Err(ConfigError::InvalidConfig(ref s)) if s.contains("pr_open_label")),
+      "expected InvalidConfig when pr_open_label omitted, got {:?}",
+      r
+    );
   }
 
   #[test]
   fn from_workflow_config_tracker_pr_open_label_parsed() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k", "pr_open_label": "pr-open" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "pr-open", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert_eq!(config.tracker.pr_open_label.as_deref(), Some("pr-open"));
+    assert_eq!(config.tracker.pr_open_label, "pr-open");
   }
 
   #[test]
   fn from_workflow_config_tracker_fix_pr_head_branch_pattern_omitted() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert!(config.tracker.fix_pr_head_branch_pattern.is_none());
@@ -484,8 +562,9 @@ mod tests {
   #[test]
   fn from_workflow_config_tracker_fix_pr_head_branch_pattern_parsed() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k", "fix_pr_head_branch_pattern": "agent/issue-{number}" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main", "fix_pr_head_branch_pattern": "agent/issue-{number}" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(
@@ -497,53 +576,64 @@ mod tests {
   #[test]
   fn from_workflow_config_tracker_mention_handle_parsed() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k", "mention_handle": "symphony" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main", "mention_handle": "symphony" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
     assert_eq!(config.tracker.mention_handle.as_deref(), Some("symphony"));
   }
 
   #[test]
-  fn from_workflow_config_tracker_pr_base_branch_omitted() {
+  fn from_workflow_config_tracker_pr_base_branch_missing_fails() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
-    let config = from_workflow_config(&value).unwrap();
-    assert!(config.tracker.pr_base_branch.is_none());
-    assert_eq!(config.tracker.effective_pr_base_branch(), "main");
+    let r = from_workflow_config(&value);
+    assert!(
+      matches!(r, Err(ConfigError::InvalidConfig(ref s)) if s.contains("pr_base_branch")),
+      "expected InvalidConfig when pr_base_branch omitted, got {:?}",
+      r
+    );
   }
 
   #[test]
   fn from_workflow_config_tracker_pr_base_branch_parsed() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k", "pr_base_branch": "develop" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "develop" },
+        "runner": { "command": "c" },
+        "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert_eq!(config.tracker.pr_base_branch.as_deref(), Some("develop"));
+    assert_eq!(config.tracker.pr_base_branch, "develop");
     assert_eq!(config.tracker.effective_pr_base_branch(), "develop");
   }
 
   #[test]
-  fn from_workflow_config_worktree_main_repo_path_omitted() {
+  fn from_workflow_config_worktree_main_repo_path_required() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
-        "runner": { "command": "c" }
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
+        "runner": { "command": "c" },
+        "worktree": { "root": "/tmp/ws" }
     });
-    let config = from_workflow_config(&value).unwrap();
-    assert!(config.worktree.main_repo_path.is_none());
+    let r = from_workflow_config(&value);
+    assert!(
+      matches!(r, Err(ConfigError::InvalidConfig(ref s)) if s.contains("main_repo_path")),
+      "expected InvalidConfig when main_repo_path omitted, got {:?}",
+      r
+    );
   }
 
   #[test]
   fn from_workflow_config_worktree_main_repo_path_parsed() {
     let value = serde_json::json!({
-        "tracker": { "repo": "r", "api_key": "k" },
+        "tracker": { "repo": "r", "api_key": "k", "claim_label": "c", "pr_open_label": "p", "pr_base_branch": "main" },
         "runner": { "command": "c" },
         "worktree": { "root": ".", "main_repo_path": "." }
     });
     let config = from_workflow_config(&value).unwrap();
-    assert!(config.worktree.main_repo_path.is_some());
+    assert!(!config.worktree.main_repo_path.as_os_str().is_empty());
   }
 }

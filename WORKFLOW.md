@@ -2,18 +2,17 @@
 # GitHub issue tracker (required).
 # Set GITHUB_TOKEN in the environment; workflow resolves $GITHUB_TOKEN at runtime.
 # Token: for orchestrator-only, Issues: Read-only (or classic public_repo/repo). For PR-driven workflow the agent needs write: Issues, Pull requests, Contents. See docs/SPEC/10-github-tracker.md.
-# Addendum 1 (docs/SPEC_ADDENDUM_1.md): include_labels / exclude_labels filter candidates; claim_label is auto-excluded so the agent can "claim" an issue; pr_base_branch (default main) for worker branches and PR target; pr_open_label optional for PR-driven flow.
-# Addendum 2 (docs/SPEC_ADDENDUM_2.md): fix_pr re-dispatches the agent when the PR has failing checks or when someone mentions the configured handle (e.g. @symphony).
-fix_pr: true
+# Addendum 1 (docs/SPEC_ADDENDUM_1.md): include_labels / exclude_labels filter candidates; claim_label, pr_open_label, pr_base_branch are required; worktree.root is required.
 tracker:
   repo: "Industrial/rust-symphony"
   api_key: "$GITHUB_TOKEN"
+  claim_label: "symphony-claimed"
+  pr_open_label: "pr-open"
+  pr_base_branch: "main"
   active_states: ["open"]
   terminal_states: ["closed"]
   include_labels: ["symphony", "bot"]
   exclude_labels: ["symphony-claimed", "wip"]
-  claim_label: "symphony-claimed"
-  pr_open_label: "pr-open"
   mention_handle: "symphony"
 
 # Command to run the coding agent in each git worktree (required).
@@ -36,16 +35,20 @@ runner:
 polling:
   interval_ms: 60000
 
-# Root directory for per-issue git worktrees. Supports $VAR and ~.
-# Default if omitted: system temp dir / symphony_worktrees.
+# worktree.root (required): root directory for per-issue git worktrees. Supports $VAR and ~.
+# main_repo_path (required): path to the main git repository; workers get a git worktree and branch per issue.
 worktree:
   root: "./.symphony_worktrees"
+  main_repo_path: "."
 
 # Optional: agent concurrency and retry.
 agent:
   max_concurrent_agents: 3
   max_turns: 20
   max_retry_backoff_ms: 300000
+
+# Addendum 2 (docs/SPEC_ADDENDUM_2.md): fix_pr re-dispatches the agent when the PR has failing checks or when someone mentions the configured handle (e.g. @symphony).
+fix_pr: true
 ---
 
 # Prompt template (how the agent receives the ticket)

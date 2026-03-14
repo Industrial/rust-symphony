@@ -1,4 +1,4 @@
-//! Git worktree directory creation (plain or git worktree), and hook execution (SPEC §9.2, §9.4).
+//! Git worktree directory creation and hook execution (SPEC §9.2, §9.4).
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -28,28 +28,6 @@ pub enum WorktreeError {
 
   #[error("worktree path exists but is not a git worktree: {0}")]
   PathExistsNotWorktree(PathBuf),
-}
-
-/// Ensure the git worktree directory exists (plain directory). Creates it with `create_dir_all` if missing.
-/// Returns `(path, true)` if the dir was just created, `(path, false)` if it already existed.
-/// Use this when `main_repo_path` is not set; when set, use `ensure_worktree_dir` for a real git worktree.
-pub async fn ensure_worktree_plain_dir(
-  root: &Path,
-  identifier: &str,
-) -> Result<(PathBuf, bool), WorktreeError> {
-  let path = worktree_path(root, identifier);
-  let existed = tokio::fs::metadata(&path)
-    .await
-    .map(|m| m.is_dir())
-    .unwrap_or(false);
-  if !existed {
-    tokio::fs::create_dir_all(&path)
-      .await
-      .map_err(WorktreeError::CreateDir)?;
-    Ok((path, true))
-  } else {
-    Ok((path, false))
-  }
 }
 
 /// True if `path` is a git worktree (has a `.git` file containing "gitdir:").
@@ -151,23 +129,6 @@ pub async fn run_hook(script: &str, cwd: &Path, timeout_ms: u64) -> Result<(), W
 #[cfg(test)]
 mod tests {
   use super::*;
-
-  #[tokio::test]
-  async fn ensure_worktree_plain_dir_creates_new() {
-    let root = std::env::temp_dir().join("symphony_ws_ensure_test");
-    let _ = tokio::fs::remove_dir_all(&root).await;
-    let (path, created) = ensure_worktree_plain_dir(&root, "owner/repo#1")
-      .await
-      .unwrap();
-    assert!(created);
-    assert!(path.is_dir());
-    assert!(path.ends_with("owner_repo_1"));
-    let (_, created2) = ensure_worktree_plain_dir(&root, "owner/repo#1")
-      .await
-      .unwrap();
-    assert!(!created2);
-    let _ = tokio::fs::remove_dir_all(&root).await;
-  }
 
   #[tokio::test]
   async fn run_hook_success() {

@@ -1753,6 +1753,7 @@ dependencies = [
  "symphony-tracker",
  "symphony-workflow",
  "symphony-workspace",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",

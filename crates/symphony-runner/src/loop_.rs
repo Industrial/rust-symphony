@@ -26,7 +26,7 @@ use symphony_tracker::{
   fetch_issue_states_by_ids, fetch_issues_with_label, issue_passes_label_filters,
   parse_issue_number, resolve_pr_for_issue,
 };
-use symphony_workspace::{ensure_worktree_dir, ensure_worktree_plain_dir, run_hook};
+use symphony_workspace::{ensure_worktree_dir, run_hook};
 
 /// One poll cycle in dry-run: fetch candidates, sort, apply concurrency; log what would be dispatched; no workers or tracker writes.
 pub async fn dry_run_one_poll(
@@ -227,7 +227,12 @@ async fn reconcile_running(
             h.abort();
           }
           release_claim(state, &issue.id);
-          debug!(%issue.id, state = %issue.state, "reconcile: terminated (terminal or inactive)");
+          info!(
+            %issue.id,
+            identifier = %issue.identifier,
+            state = %issue.state,
+            "worker terminated (issue terminal or no longer active)"
+          );
         }
       }
     }
@@ -282,7 +287,11 @@ async fn terminate_stalled(
         now_ms,
         config.agent.max_retry_backoff_ms,
       );
-      debug!(%issue_id, "stall: terminated (no agent activity for {}ms)", stall_timeout_ms);
+      info!(
+        %issue_id,
+        elapsed_ms = stall_timeout_ms,
+        "worker terminated (stall: no agent activity)"
+      );
     }
   }
 }
@@ -351,14 +360,21 @@ async fn process_due_retries(
               worker_handles,
             )
             .await;
-            debug!(%issue_id, "due retry: re-dispatched");
           } else {
             release_claim(state, &issue_id);
-            debug!(%issue_id, "due retry: no longer eligible, released");
+            info!(
+              %issue_id,
+              identifier = %identifier,
+              "retry: no longer eligible, released claim"
+            );
           }
         } else {
           release_claim(state, &issue_id);
-          debug!(%issue_id, "due retry: fetch missed, released");
+          info!(
+            %issue_id,
+            identifier = %identifier,
+            "retry: issue not found, released claim"
+          );
         }
       }
     }
@@ -386,7 +402,8 @@ async fn dispatch_new_candidates(
   let mut total_candidates = 0usize;
 
   if config.fix_pr {
-    if let Some(ref pr_open_label) = config.tracker.pr_open_label {
+    let pr_open_label = &config.tracker.pr_open_label;
+    {
       let head_pattern = config
         .tracker
         .fix_pr_head_branch_pattern
@@ -600,7 +617,7 @@ fn worktree_branch_name(identifier: &str) -> String {
   }
 }
 
-/// Run one worker to completion: ensure git worktree (plain dir or git worktree when main_repo_path set), hooks, render prompt, run agent, send WorkerExit.
+/// Run one worker to completion: ensure git worktree and branch (created before work starts), hooks, render prompt, run agent, send WorkerExit.
 async fn run_worker_to_completion(
   config: ServiceConfig,
   prompt_template: String,
@@ -610,29 +627,26 @@ async fn run_worker_to_completion(
   retry_attempt: u32,
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
 ) {
-  let (path, created) = match config.worktree.main_repo_path.as_ref() {
-    Some(main_repo) => {
-      let branch = worktree_branch_name(&identifier);
-      match ensure_worktree_dir(&config.worktree.root, &identifier, main_repo, &branch).await {
-        Ok(p) => p,
-        Err(e) => {
-          warn!(%issue_id, %e, "ensure worktree failed");
-          release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
-          return;
-        }
-      }
-    }
-    None => match ensure_worktree_plain_dir(&config.worktree.root, &identifier).await {
+  let main_repo = &config.worktree.main_repo_path;
+  let branch = worktree_branch_name(&identifier);
+  let (path, created) =
+    match ensure_worktree_dir(&config.worktree.root, &identifier, main_repo, &branch).await {
       Ok(p) => p,
       Err(e) => {
-        warn!(%issue_id, %e, "ensure git worktree failed");
+        warn!(%issue_id, %e, "ensure worktree failed");
         release_claim_and_send_exit(&tx, &issue_id, WorkerExitReason::Failed(e.to_string()), 0.0);
         return;
       }
-    },
-  };
+    };
 
   if created {
+    info!(
+      %issue_id,
+      identifier = %identifier,
+      path = %path.display(),
+      branch = %branch,
+      "worktree and branch created"
+    );
     if let Some(ref script) = config.hooks.after_create {
       if let Err(e) = run_hook(script, &path, config.hooks.timeout_ms()).await {
         warn!(%issue_id, %e, "after_create hook failed");
@@ -749,6 +763,13 @@ async fn dispatch_worker(
   let prompt_template = prompt_template.to_string();
   let issue_clone = issue.clone();
 
+  info!(
+    %issue_id,
+    identifier = %issue.identifier,
+    retry_attempt = retry_attempt,
+    "worker started"
+  );
+
   let handle = tokio::spawn(run_worker_to_completion(
     config,
     prompt_template,
@@ -760,7 +781,6 @@ async fn dispatch_worker(
   ));
 
   worker_handles.insert(issue_id.clone(), handle);
-  debug!(%issue_id, "dispatched");
 }
 
 /// Sends a `WorkerExit` message on the orchestrator channel so the main loop can release the claim and update state.
@@ -804,11 +824,11 @@ mod tests {
         terminal_states: None,
         include_labels: None,
         exclude_labels: None,
-        claim_label: None,
-        pr_open_label: None,
+        claim_label: "symphony-claimed".into(),
+        pr_open_label: "pr-open".into(),
         fix_pr_head_branch_pattern: None,
         mention_handle: None,
-        pr_base_branch: None,
+        pr_base_branch: "main".into(),
       },
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),
@@ -820,7 +840,7 @@ mod tests {
       polling: symphony_config::PollingConfig::default(),
       worktree: symphony_config::WorktreeConfig {
         root: std::env::temp_dir().join("symphony_ws"),
-        main_repo_path: None,
+        main_repo_path: std::env::temp_dir().join("symphony_runner_main"),
       },
       hooks: symphony_config::HooksConfig::default(),
       agent: symphony_config::AgentConfig::default(),
@@ -944,7 +964,7 @@ mod tests {
 
     let mut config = test_config();
     config.worktree.root = root.join("ws");
-    config.worktree.main_repo_path = Some(main_repo.clone());
+    config.worktree.main_repo_path = main_repo.clone();
     config.runner.runner_type = RunnerType::Cli;
     config.runner.command =
       "sh -c 'pwd > agent_cwd.txt; echo \"{\\\"type\\\":\\\"result\\\",\\\"subtype\\\":\\\"success\\\"}\"'"

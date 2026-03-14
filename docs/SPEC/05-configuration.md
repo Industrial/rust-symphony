@@ -74,7 +74,10 @@ Run before startup and before each dispatch cycle. Use **validator** on the reso
 1. Workflow file can be loaded and parsed.
 2. `tracker.repo` is present (non-empty after trim).
 3. `tracker.api_key` is present after `$VAR` resolution (non-empty).
-4. `runner.command` is present and non-empty.
+4. `tracker.claim_label`, `tracker.pr_open_label`, and `tracker.pr_base_branch` are required (non-empty after trim); config load fails if any is missing.
+5. `runner.command` is present and non-empty.
+6. `worktree.root` is required (non-empty after resolution); config load fails if missing.
+7. `worktree.main_repo_path` is present and non-empty after resolution (required for worker development in a git worktree and branch).
 
 Example (conceptual):
 
@@ -128,11 +131,15 @@ Typed getters should expose (after resolution and defaults):
 |-----|------|----------------|
 | `tracker.repo` | `String` | required |
 | `tracker.api_key` | `String` | required (after `$VAR`) |
+| `tracker.claim_label` | `String` | **required**; label agent adds when claiming |
+| `tracker.pr_open_label` | `String` | **required**; label for PR-open visibility/filtering |
+| `tracker.pr_base_branch` | `String` | **required**; base branch for worker branches and PR target |
 | `tracker.endpoint` | `String` | `"https://api.github.com"` |
 | `tracker.active_states` | `Vec<String>` | `["open"]` |
 | `tracker.terminal_states` | `Vec<String>` | `["closed"]` |
 | `polling.interval_ms` | `u64` | `30000` |
-| `worktree.root` | `PathBuf` | system temp / `symphony_workspaces`; expand `~` and `$VAR` |
+| `worktree.root` | `PathBuf` | **required**; root for per-issue worktrees; expand `~` and `$VAR` |
+| `worktree.main_repo_path` | `PathBuf` | **required**; path to main git repo; expand `~` and `$VAR` |
 | `hooks.after_create` / `before_run` / `after_run` / `before_remove` | `Option<String>` | optional script |
 | `hooks.timeout_ms` | `u64` | `60000` |
 | `agent.max_concurrent_agents` | `u32` | `10` |

@@ -42,8 +42,8 @@ tokio = { version = "1", features = ["fs", "process", "time"] }
 
 1. **Sanitize** `issue.identifier` → `worktree_key`.
 2. **Path** = `worktree_root.join(worktree_key)`.
-3. **Ensure dir exists**: `tokio::fs::create_dir(path).await` — if error is "already exists", treat as reuse (`created_now = false`); else `created_now = true`. Alternatively use `metadata(path).await`; if `is_dir()` then reuse else create.
-4. If **created_now** and `hooks.after_create` is set, run the hook (see §9.4); on failure return error and optionally remove the new dir.
+3. **Ensure worktree exists**: From `worktree.main_repo_path` (required), run `git worktree add <path> -b <branch_name>` so the per-issue branch is created before any agent run. If the path already exists and is a git worktree, treat as reuse (`created_now = false`); else `created_now = true`.
+4. If **created_now** and `hooks.after_create` is set, run the hook (see §9.4); on failure return error and optionally remove the new worktree.
 5. Return `Worktree { path, worktree_key, created_now }`.
 
 ---

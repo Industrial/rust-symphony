@@ -5,5 +5,5 @@
 mod manager;
 mod path;
 
-pub use manager::{WorktreeError, ensure_worktree_dir, ensure_worktree_plain_dir, run_hook};
+pub use manager::{WorktreeError, ensure_worktree_dir, run_hook};
 pub use path::{is_path_under_root, worktree_path};
