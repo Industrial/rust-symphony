@@ -6,10 +6,11 @@ use std::time::Duration;
 
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::Command;
 use tokio::time::timeout;
 
 use crate::runner::{AgentExitReason, AgentRunOutcome, AgentRunnerError, AgentRunnerUpdate};
+use crate::spawn::spawn_agent_process;
+use symphony_config::FirecrackerSandboxConfig;
 
 /// Maximum line length when reading agent stdout (10 MiB per SPEC).
 const MAX_LINE_LEN: usize = 10 * 1024 * 1024;
@@ -26,6 +27,7 @@ pub async fn run_agent_acp(
   turn_timeout_ms: u64,
   read_timeout_ms: u64,
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
+  sandbox_config: Option<&FirecrackerSandboxConfig>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
   let start = std::time::Instant::now();
   let cwd_abs = worktree_path
@@ -34,20 +36,12 @@ pub async fn run_agent_acp(
     .to_string_lossy()
     .to_string();
 
-  let mut child = Command::new("sh")
-    .args(["-lc", command])
-    .current_dir(worktree_path)
-    .stdin(std::process::Stdio::piped())
-    .stdout(std::process::Stdio::piped())
-    .stderr(std::process::Stdio::piped())
-    .spawn()
-    .map_err(AgentRunnerError::Spawn)?;
+  let mut handle = spawn_agent_process(command, worktree_path, sandbox_config).await?;
 
-  let mut stdin = child.stdin.take().ok_or(AgentRunnerError::StdinTaken)?;
-  let stdout = child.stdout.take().ok_or(AgentRunnerError::StdoutTaken)?;
+  let mut stdin = handle.stdin.take().ok_or(AgentRunnerError::StdinTaken)?;
+  let stdout = handle.stdout.take().ok_or(AgentRunnerError::StdoutTaken)?;
 
-  let stderr = child.stderr.take();
-  if let Some(stderr) = stderr {
+  if let Some(stderr) = handle.stderr.take() {
     tokio::spawn(async move {
       let mut reader = BufReader::new(stderr);
       let mut line = String::new();
@@ -71,8 +65,8 @@ pub async fn run_agent_acp(
     tracing::debug!(agent_direction = direction, agent_line = %s);
   }
 
-  async fn write_line(
-    stdin: &mut tokio::process::ChildStdin,
+  async fn write_line<S: AsyncWriteExt + Unpin>(
+    stdin: &mut S,
     s: &str,
   ) -> Result<(), AgentRunnerError> {
     log_line("send", s);
@@ -91,8 +85,8 @@ pub async fn run_agent_acp(
     Ok(())
   }
 
-  async fn read_line_timed(
-    reader: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+  async fn read_line_timed<R: AsyncBufReadExt + Unpin>(
+    reader: &mut tokio::io::Lines<R>,
     dur: Duration,
     step: &str,
   ) -> Result<String, AgentRunnerError> {
@@ -286,10 +280,7 @@ pub async fn run_agent_acp(
   };
 
   let _ = stdin.shutdown().await;
-  let status = child
-    .wait()
-    .await
-    .map_err(|e| AgentRunnerError::ProcessExit(e.to_string()))?;
+  let status = handle.wait().await?;
   if !status.success() {
     return Err(AgentRunnerError::ProcessExit(format!(
       "exit code {:?}",

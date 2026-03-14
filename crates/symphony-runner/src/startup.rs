@@ -63,6 +63,8 @@ mod tests {
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),
         runner_type: symphony_config::RunnerType::Codex,
+        sandbox: symphony_config::SandboxMode::None,
+        firecracker: None,
         turn_timeout_ms: None,
         read_timeout_ms: None,
         stall_timeout_ms: None,

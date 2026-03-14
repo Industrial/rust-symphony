@@ -12,8 +12,8 @@ use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 use symphony_agent::{AgentExitReason, AgentRunnerUpdate, RunnerProtocol, run_agent_with_protocol};
-use symphony_config::RunnerType;
 use symphony_config::ServiceConfig;
+use symphony_config::{RunnerType, SandboxMode};
 use symphony_domain::{Issue, LiveSession, OrchestratorState, RunningEntry};
 use symphony_orchestration::{
   AgentUpdatePayload, OrchestratorMessage, WorkerExitReason, apply_agent_update, apply_worker_exit,
@@ -693,6 +693,10 @@ async fn run_worker_to_completion(
     RunnerType::Acp => RunnerProtocol::Acp,
     RunnerType::Cli => RunnerProtocol::Cli,
   };
+  let sandbox_config = match config.runner.sandbox {
+    SandboxMode::Firecracker => config.runner.firecracker.as_ref(),
+    SandboxMode::None => None,
+  };
   let outcome = run_agent_with_protocol(
     protocol,
     &config.runner.command,
@@ -703,6 +707,7 @@ async fn run_worker_to_completion(
     turn_timeout_ms,
     read_timeout_ms,
     Some(update_tx),
+    sandbox_config,
   )
   .await;
 
@@ -833,6 +838,8 @@ mod tests {
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),
         runner_type: symphony_config::RunnerType::Codex,
+        sandbox: symphony_config::SandboxMode::None,
+        firecracker: None,
         turn_timeout_ms: None,
         read_timeout_ms: None,
         stall_timeout_ms: None,

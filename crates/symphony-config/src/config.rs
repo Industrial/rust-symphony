@@ -103,6 +103,40 @@ pub enum RunnerType {
   Cli,
 }
 
+/// Sandbox mode for agent runs: none (host process) or Firecracker microVM.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SandboxMode {
+  /// Run agent on host (default).
+  #[default]
+  None,
+  /// Run agent inside a Firecracker microVM with worktree mounted; requires kernel/rootfs config.
+  Firecracker,
+}
+
+/// Firecracker sandbox assets and paths (when runner.sandbox is firecracker).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FirecrackerSandboxConfig {
+  /// Path to the kernel image (e.g. vmlinux).
+  pub kernel_path: std::path::PathBuf,
+  /// Path to the rootfs image (e.g. ext4 or squashfs).
+  pub rootfs_path: std::path::PathBuf,
+  /// Path inside the guest where the worktree is mounted (e.g. /worktree).
+  #[serde(default = "default_worktree_guest_path")]
+  pub worktree_guest_path: std::path::PathBuf,
+  /// Vsock port the guest agent-runner listens on (host connects to guest_cid:port).
+  #[serde(default = "default_vsock_port")]
+  pub vsock_port: u32,
+}
+
+fn default_worktree_guest_path() -> std::path::PathBuf {
+  std::path::Path::new("/worktree").to_path_buf()
+}
+
+fn default_vsock_port() -> u32 {
+  5000
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct RunnerConfig {
   #[validate(length(min = 1, message = "runner.command required"))]
@@ -111,6 +145,13 @@ pub struct RunnerConfig {
   /// Protocol the agent speaks: "codex" (default) or "acp" (Cursor ACP).
   #[serde(rename = "type", default)]
   pub runner_type: RunnerType,
+
+  /// Sandbox mode: "none" (default) or "firecracker". When firecracker, runner.firecracker must provide kernel_path and rootfs_path.
+  #[serde(default)]
+  pub sandbox: SandboxMode,
+
+  /// Firecracker sandbox assets; required when sandbox is firecracker.
+  pub firecracker: Option<FirecrackerSandboxConfig>,
 
   pub turn_timeout_ms: Option<u64>,
   pub read_timeout_ms: Option<u64>,
@@ -255,6 +296,8 @@ mod tests {
       runner: RunnerConfig {
         command: "codex app-server".into(),
         runner_type: RunnerType::Codex,
+        sandbox: SandboxMode::None,
+        firecracker: None,
         turn_timeout_ms: None,
         read_timeout_ms: None,
         stall_timeout_ms: None,
@@ -287,6 +330,8 @@ mod tests {
     let r = RunnerConfig {
       command: "c".into(),
       runner_type: RunnerType::Codex,
+      sandbox: SandboxMode::None,
+      firecracker: None,
       turn_timeout_ms: Some(100),
       read_timeout_ms: None,
       stall_timeout_ms: Some(200),

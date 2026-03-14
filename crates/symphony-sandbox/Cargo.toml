@@ -1,0 +1,28 @@
+[package]
+name = "symphony-sandbox"
+version.workspace = true
+edition.workspace = true
+description = "Firecracker microVM sandbox for agent runs (optional strong isolation)"
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["io-util", "sync", "rt", "macros", "net"] }
+tracing = "0.1"
+
+# Firecracker VM lifecycle and vsock (optional; enable for sandbox execution)
+fctools = { version = "0.6", optional = true, features = [
+  "vm",
+  "tokio-runtime",
+  "direct-process-spawner",
+  "nix-syscall-backend",
+  "http-vsock-extension",
+] }
+tokio-vsock = { version = "0.7", optional = true }
+
+[features]
+default = []
+# Enable to run agent inside Firecracker microVM (requires kernel + rootfs + guest agent-runner)
+firecracker = ["dep:fctools", "dep:tokio-vsock"]

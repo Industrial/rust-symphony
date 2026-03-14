@@ -4,10 +4,11 @@ use std::path::Path;
 use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::Command;
 use tokio::time::timeout;
 
 use crate::protocol::{AgentMessage, parse_line};
+use crate::spawn::spawn_agent_process;
+use symphony_config::FirecrackerSandboxConfig;
 
 /// Outcome of a single agent run (one turn for now).
 #[derive(Debug, Clone)]
@@ -71,6 +72,7 @@ const MAX_LINE_LEN: usize = 10 * 1024 * 1024;
 /// Run the agent (Codex-style): spawn, handshake (initialize, thread/start, turn/start), then read until
 /// turn/completed, turn/failed, turn/cancelled, or turn timeout. Stderr is logged in a background task.
 /// `update_tx`: if provided, send updates when we have thread_id/turn_id.
+/// When `sandbox_config` is Some, the agent runs inside a Firecracker microVM.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_agent_codex(
   command: &str,
@@ -81,6 +83,7 @@ pub async fn run_agent_codex(
   turn_timeout_ms: u64,
   read_timeout_ms: u64,
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
+  sandbox_config: Option<&FirecrackerSandboxConfig>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
   let start = std::time::Instant::now();
   let cwd_abs = worktree_path
@@ -89,21 +92,13 @@ pub async fn run_agent_codex(
     .to_string_lossy()
     .to_string();
 
-  let mut child = Command::new("sh")
-    .args(["-lc", command])
-    .current_dir(worktree_path)
-    .stdin(std::process::Stdio::piped())
-    .stdout(std::process::Stdio::piped())
-    .stderr(std::process::Stdio::piped())
-    .spawn()
-    .map_err(AgentRunnerError::Spawn)?;
+  let mut handle = spawn_agent_process(command, worktree_path, sandbox_config).await?;
 
-  let mut stdin = child.stdin.take().ok_or(AgentRunnerError::StdinTaken)?;
-  let stdout = child.stdout.take().ok_or(AgentRunnerError::StdoutTaken)?;
+  let mut stdin = handle.stdin.take().ok_or(AgentRunnerError::StdinTaken)?;
+  let stdout = handle.stdout.take().ok_or(AgentRunnerError::StdoutTaken)?;
 
   // Stderr: log lines in background
-  let stderr = child.stderr.take();
-  if let Some(stderr) = stderr {
+  if let Some(stderr) = handle.stderr.take() {
     tokio::spawn(async move {
       let mut reader = BufReader::new(stderr);
       let mut line = String::new();
@@ -127,12 +122,11 @@ pub async fn run_agent_codex(
     tracing::debug!(agent_direction = direction, agent_line = %s);
   }
 
-  async fn write_line(
-    stdin: &mut tokio::process::ChildStdin,
+  async fn write_line<S: AsyncWriteExt + Unpin>(
+    stdin: &mut S,
     s: &str,
   ) -> Result<(), AgentRunnerError> {
     log_agent_line("send", s);
-    use tokio::io::AsyncWriteExt;
     stdin
       .write_all(s.as_bytes())
       .await
@@ -148,8 +142,8 @@ pub async fn run_agent_codex(
     Ok(())
   }
 
-  async fn read_line_timeout(
-    reader: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+  async fn read_line_timeout<R: tokio::io::AsyncBufRead + Unpin>(
+    reader: &mut tokio::io::Lines<R>,
     dur: Duration,
     step: &str,
   ) -> Result<String, AgentRunnerError> {
@@ -355,10 +349,7 @@ pub async fn run_agent_codex(
   };
 
   let _ = stdin.shutdown().await;
-  let status = child
-    .wait()
-    .await
-    .map_err(|e| AgentRunnerError::ProcessExit(e.to_string()))?;
+  let status = handle.wait().await?;
   if !status.success() {
     return Err(AgentRunnerError::ProcessExit(format!(
       "exit code {:?}",

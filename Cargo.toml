@@ -8,6 +8,7 @@ members = [
   "crates/symphony-runner",
   "crates/symphony-workspace",
   "crates/symphony-agent",
+  "crates/symphony-sandbox",
   "crates/symphony-tracker",
   "crates/symphony-prompt",
 ]
@@ -29,3 +30,4 @@ symphony-agent = { path = "crates/symphony-agent", version = "0.3.1" }
 symphony-prompt = { path = "crates/symphony-prompt", version = "0.3.1" }
 symphony-tracker = { path = "crates/symphony-tracker", version = "0.3.1" }
 symphony-workspace = { path = "crates/symphony-workspace", version = "0.3.1" }
+symphony-sandbox = { path = "crates/symphony-sandbox", version = "0.3.1" }

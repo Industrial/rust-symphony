@@ -1,8 +1,8 @@
 //! Integration test: dry_run_one_poll with wiremock (SPEC §17.4 — fetch, sort, no workers).
 
 use symphony_config::{
-  AgentConfig, HooksConfig, PollingConfig, RunnerConfig, RunnerType, ServiceConfig, TrackerConfig,
-  WorktreeConfig,
+  AgentConfig, HooksConfig, PollingConfig, RunnerConfig, RunnerType, SandboxMode, ServiceConfig,
+  TrackerConfig, WorktreeConfig,
 };
 use symphony_runner::dry_run_one_poll;
 use wiremock::matchers::{method, path};
@@ -42,6 +42,8 @@ fn service_config_with_endpoint(endpoint: &str) -> ServiceConfig {
     runner: RunnerConfig {
       command: "echo agent".to_string(),
       runner_type: RunnerType::Codex,
+      sandbox: SandboxMode::None,
+      firecracker: None,
       turn_timeout_ms: None,
       read_timeout_ms: None,
       stall_timeout_ms: None,
