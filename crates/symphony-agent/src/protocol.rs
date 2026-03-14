@@ -19,6 +19,7 @@ pub enum AgentMessage {
 
 /// Parse one NDJSON line into AgentMessage. No full JSON-RPC: match on method/result/error.
 pub fn parse_line(line: &str) -> AgentMessage {
+  tracing::trace!("parse_line");
   let line = line.trim();
   if line.is_empty() {
     return AgentMessage::Malformed(line.to_string());

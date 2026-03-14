@@ -32,6 +32,7 @@ use symphony_workspace::{ensure_worktree_dir, run_hook};
 pub async fn dry_run_one_poll(
   config: &ServiceConfig,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+  tracing::trace!("dry_run_one_poll");
   let max_concurrent = config.agent.max_concurrent_agents;
   let active_states = config.tracker.active_states_slice();
   let exclude_labels = config.tracker.effective_exclude_labels();
@@ -80,6 +81,7 @@ pub async fn run_orchestrator(
   mut worker_handles: HashMap<String, WorkerHandle>,
   mut exit_on_failure_tx: ExitOnFailureSender,
 ) {
+  tracing::trace!("run_orchestrator");
   while let Some(msg) = rx.recv().await {
     match msg {
       OrchestratorMessage::PollTick => {
@@ -158,6 +160,23 @@ pub async fn run_orchestrator(
   debug!("orchestrator task exiting");
 }
 
+/// Summary of ticket statuses for one poll tick (debug visibility).
+#[derive(Default)]
+struct TicketChurnSummary {
+  /// Issue identifiers with pr_open_label considered this tick (excluding already running).
+  fix_pr_candidates: Vec<String>,
+  /// Fix-PR candidates that have a resolved PR (head branch matches).
+  has_pr: Vec<String>,
+  /// Fix-PR candidates we re-dispatched (failed checks or qualifying mention).
+  fix_pr_dispatching: Vec<String>,
+  /// Fix-PR candidates we are waiting on (no PR, or PR exists but no failed checks and no mention).
+  fix_pr_waiting: Vec<String>,
+  /// Normal candidates (included for Symphony by label filter; would be dispatched as new work).
+  included_for_symphony: Vec<String>,
+  /// Normal candidates we actually dispatched this tick (subset of included_for_symphony).
+  normal_dispatched: Vec<String>,
+}
+
 /// One PollTick: reconcile, validate (caller did), fetch candidates, sort,
 /// process due retries, dispatch new, notify (log).
 /// SPEC_ADDENDUM_2 B.1: Fix-PR logic (candidate set for PR-open issues, check fetch, mention fetch, re-dispatch)
@@ -170,6 +189,7 @@ async fn poll_tick(
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
   worker_handles: &mut HashMap<String, WorkerHandle>,
 ) {
+  tracing::trace!("poll_tick");
   reconcile_running(state, config, tx.clone(), worker_handles).await;
   terminate_stalled(state, config, now_ms, worker_handles).await;
   process_due_retries(
@@ -181,8 +201,9 @@ async fn poll_tick(
     worker_handles,
   )
   .await;
-  let num_candidates =
+  let (num_candidates, churn) =
     dispatch_new_candidates(state, config, prompt_template, tx, worker_handles).await;
+  log_ticket_status_churn(state, &churn);
   log_tick_summary(state, num_candidates);
 }
 
@@ -193,6 +214,7 @@ async fn reconcile_running(
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
   worker_handles: &mut HashMap<String, WorkerHandle>,
 ) {
+  tracing::trace!("reconcile_running");
   if state.running.is_empty() {
     return;
   }
@@ -249,6 +271,7 @@ async fn terminate_stalled(
   now_ms: u64,
   worker_handles: &mut HashMap<String, WorkerHandle>,
 ) {
+  tracing::trace!("terminate_stalled");
   let stall_timeout_ms = config.runner.stall_timeout_ms();
   let now = chrono::Utc::now();
   let stalled: Vec<String> = state
@@ -305,6 +328,7 @@ async fn process_due_retries(
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
   worker_handles: &mut HashMap<String, WorkerHandle>,
 ) {
+  tracing::trace!("process_due_retries");
   let max_concurrent = config.agent.max_concurrent_agents;
   let due: Vec<(String, String)> = state
     .retry_attempts
@@ -388,7 +412,8 @@ async fn process_due_retries(
   }
 }
 
-/// Dispatch new candidates: fix-PR candidates (when fix_pr) then normal candidates; sort, dispatch up to concurrency. Returns candidate count.
+/// Dispatch new candidates: fix-PR candidates (when fix_pr) then normal candidates; sort, dispatch up to concurrency.
+/// Returns (total candidate count, ticket churn summary for debug logging).
 /// SPEC_ADDENDUM_2 B.8: Same poll tick as normal candidates; fix-PR only reads (checks, mentions). Orchestrator does not add/remove labels or post comments. Single worker per issue (fix-PR re-dispatch reuses same git worktree/branch).
 async fn dispatch_new_candidates(
   state: &mut OrchestratorState,
@@ -396,10 +421,12 @@ async fn dispatch_new_candidates(
   prompt_template: &str,
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
   worker_handles: &mut HashMap<String, WorkerHandle>,
-) -> usize {
+) -> (usize, TicketChurnSummary) {
+  tracing::trace!("dispatch_new_candidates");
   let max_concurrent = config.agent.max_concurrent_agents;
   let active_states = config.tracker.active_states_slice();
   let mut total_candidates = 0usize;
+  let mut churn = TicketChurnSummary::default();
 
   if config.fix_pr {
     let pr_open_label = &config.tracker.pr_open_label;
@@ -424,6 +451,9 @@ async fn dispatch_new_candidates(
             .into_iter()
             .filter(|issue| !state.running.contains_key(&issue.id))
             .collect();
+          for ident in fix_pr_candidates.iter().map(|i| i.identifier.clone()) {
+            churn.fix_pr_candidates.push(ident);
+          }
           total_candidates += fix_pr_candidates.len();
           for issue in fix_pr_candidates {
             if !can_dispatch(state, &issue.id, max_concurrent) {
@@ -446,6 +476,7 @@ async fn dispatch_new_candidates(
             .await
             {
               Ok(Some(pr)) => {
+                churn.has_pr.push(issue.identifier.clone());
                 let endpoint = config.tracker.endpoint_or_default();
                 let api_key = &config.tracker.api_key;
                 let repo = &config.tracker.repo;
@@ -503,6 +534,7 @@ async fn dispatch_new_candidates(
 
                 let should_dispatch = any_check_failed || commit_failed || has_mention;
                 if should_dispatch {
+                  churn.fix_pr_dispatching.push(issue.identifier.clone());
                   dispatch_worker(
                     state,
                     &issue,
@@ -513,10 +545,12 @@ async fn dispatch_new_candidates(
                   )
                   .await;
                 } else {
+                  churn.fix_pr_waiting.push(issue.identifier.clone());
                   debug!(%issue.id, "fix-PR candidate: no failed checks and no qualifying mention, waiting");
                 }
               }
               Ok(None) => {
+                churn.fix_pr_waiting.push(issue.identifier.clone());
                 debug!(%issue.id, "fix-PR candidate has no PR (head branch pattern), waiting");
               }
               Err(e) => {
@@ -546,12 +580,15 @@ async fn dispatch_new_candidates(
     Ok(c) => c,
     Err(e) => {
       warn!(%e, "fetch candidates failed, skipping this tick");
-      return total_candidates;
+      return (total_candidates, churn);
     }
   };
   let mut sorted = candidates;
   symphony_orchestration::sort_for_dispatch(&mut sorted);
   let num_candidates = sorted.len();
+  for ident in sorted.iter().map(|i| i.identifier.clone()) {
+    churn.included_for_symphony.push(ident);
+  }
   total_candidates += num_candidates;
   if num_candidates > 0 {
     info!(candidates = num_candidates, "fetched candidates");
@@ -560,6 +597,7 @@ async fn dispatch_new_candidates(
     if !can_dispatch(state, &issue.id, max_concurrent) {
       break;
     }
+    churn.normal_dispatched.push(issue.identifier.clone());
     dispatch_worker(
       state,
       &issue,
@@ -570,11 +608,61 @@ async fn dispatch_new_candidates(
     )
     .await;
   }
-  total_candidates
+  (total_candidates, churn)
+}
+
+/// Debug log ticket status churn for each poll tick: which tickets exist, included for Symphony,
+/// in progress, have PR, incomplete, require additional work (checks/mentions).
+fn log_ticket_status_churn(state: &OrchestratorState, churn: &TicketChurnSummary) {
+  tracing::trace!("log_ticket_status_churn");
+  let running: Vec<&str> = state
+    .running
+    .values()
+    .map(|e| e.identifier.as_str())
+    .collect();
+  let retry_queued: Vec<&str> = state
+    .retry_attempts
+    .values()
+    .map(|e| e.identifier.as_str())
+    .collect();
+  let fix_pr_candidates: Vec<&str> = churn.fix_pr_candidates.iter().map(String::as_str).collect();
+  let has_pr: Vec<&str> = churn.has_pr.iter().map(String::as_str).collect();
+  let fix_pr_dispatching: Vec<&str> = churn
+    .fix_pr_dispatching
+    .iter()
+    .map(String::as_str)
+    .collect();
+  let fix_pr_waiting: Vec<&str> = churn.fix_pr_waiting.iter().map(String::as_str).collect();
+  let included_for_symphony: Vec<&str> = churn
+    .included_for_symphony
+    .iter()
+    .map(String::as_str)
+    .collect();
+  let normal_dispatched: Vec<&str> = churn.normal_dispatched.iter().map(String::as_str).collect();
+  // Incomplete = retry_queued (will retry) + fix_pr_waiting (have PR but no trigger yet); may overlap.
+  let incomplete: Vec<&str> = retry_queued
+    .iter()
+    .copied()
+    .chain(fix_pr_waiting.iter().copied())
+    .collect();
+  debug!(
+    running = ?running,
+    retry_queued = ?retry_queued,
+    fix_pr_candidates = ?fix_pr_candidates,
+    has_pr = ?has_pr,
+    fix_pr_dispatching = ?fix_pr_dispatching,
+    fix_pr_waiting = ?fix_pr_waiting,
+    included_for_symphony = ?included_for_symphony,
+    normal_dispatched = ?normal_dispatched,
+    incomplete = ?incomplete,
+    requires_additional_work = ?fix_pr_dispatching,
+    "ticket_status churn (RUST_LOG=debug); complete = orchestrator does not fetch closed/terminal issues"
+  );
 }
 
 /// Log tick summary (running count, retry count, or "no work yet").
 pub(crate) fn log_tick_summary(state: &OrchestratorState, num_candidates: usize) {
+  tracing::trace!("log_tick_summary");
   if !state.running.is_empty() || !state.retry_attempts.is_empty() {
     info!(
       running = state.running.len(),
@@ -592,6 +680,7 @@ async fn forward_agent_updates(
   issue_id: String,
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
 ) {
+  tracing::trace!("forward_agent_updates");
   while let Some(u) = update_rx.recv().await {
     let payload = AgentUpdatePayload {
       session_id: u.session_id,
@@ -611,6 +700,7 @@ async fn forward_agent_updates(
 
 /// Branch name for the per-issue worktree (SPEC_ADDENDUM_1 A.3.1). Uses issue number when present.
 fn worktree_branch_name(identifier: &str) -> String {
+  tracing::trace!("worktree_branch_name");
   match parse_issue_number(identifier) {
     Some(n) => format!("symphony/issue-{}", n),
     None => format!("symphony/issue-{}", identifier.replace(['/', '#'], "_")),
@@ -627,6 +717,7 @@ async fn run_worker_to_completion(
   retry_attempt: u32,
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
 ) {
+  tracing::trace!("run_worker_to_completion");
   let main_repo = &config.worktree.main_repo_path;
   let branch = worktree_branch_name(&identifier);
   let (path, created) =
@@ -740,6 +831,7 @@ async fn dispatch_worker(
   tx: mpsc::UnboundedSender<OrchestratorMessage>,
   worker_handles: &mut HashMap<String, WorkerHandle>,
 ) {
+  tracing::trace!("dispatch_worker");
   let issue_id = issue.id.clone();
   let identifier = issue.identifier.clone();
   remove_retry_on_dispatch(state, &issue_id);
@@ -790,6 +882,7 @@ fn release_claim_and_send_exit(
   reason: WorkerExitReason,
   runtime_seconds: f64,
 ) {
+  tracing::trace!("release_claim_and_send_exit");
   let _ = tx.send(OrchestratorMessage::WorkerExit {
     issue_id: issue_id.to_string(),
     reason,

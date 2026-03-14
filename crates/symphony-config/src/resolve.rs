@@ -9,12 +9,14 @@ use crate::ConfigError;
 /// Expand `$VAR_NAME` and `${VAR_NAME}` from the environment.
 /// Use for values that support indirection (e.g. `tracker.api_key`, `worktree.root`).
 pub fn resolve_var(s: &str) -> String {
+  tracing::trace!("resolve_var");
   env_with_context_no_errors(s, |key| std::env::var(key).ok()).into_owned()
 }
 
 /// Resolve git worktree root: apply $VAR, expand `~`, then normalize to absolute path.
 /// Relative paths are joined with `std::env::current_dir()`.
 pub fn resolve_worktree_root(s: &str) -> Result<PathBuf, ConfigError> {
+  tracing::trace!("resolve_worktree_root");
   let with_vars = resolve_var(s);
   let with_tilde = tilde(&with_vars).into_owned();
   let path = PathBuf::from(with_tilde.trim());

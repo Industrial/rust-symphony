@@ -15,6 +15,7 @@ pub fn spawn_workflow_reload_task(
   workflow_path_arg: Option<PathBuf>,
   poll_secs: u64,
 ) -> tokio::task::JoinHandle<()> {
+  tracing::trace!("spawn_workflow_reload_task");
   tokio::spawn(async move {
     let mut last_mtime = None::<std::time::SystemTime>;
     loop {

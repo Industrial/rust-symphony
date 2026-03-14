@@ -21,6 +21,7 @@ pub fn render_prompt(
   attempt: Option<u32>,
   workflow: Option<&WorkflowPromptContext>,
 ) -> Result<String, PromptError> {
+  tracing::trace!("render_prompt");
   if template.trim().is_empty() {
     return Ok("You are working on an issue from GitHub.".to_string());
   }
@@ -56,6 +57,7 @@ pub fn render_prompt(
 }
 
 fn workflow_to_liquid_object(w: &WorkflowPromptContext) -> Object {
+  tracing::trace!("workflow_to_liquid_object");
   let mut obj = Object::new();
   obj.insert(
     "pr_base_branch".into(),
@@ -65,6 +67,7 @@ fn workflow_to_liquid_object(w: &WorkflowPromptContext) -> Object {
 }
 
 fn issue_to_liquid_object(issue: &Issue) -> Object {
+  tracing::trace!("issue_to_liquid_object");
   let mut obj = liquid::model::Object::new();
   obj.insert("id".into(), Value::scalar(issue.id.clone()));
   obj.insert("identifier".into(), Value::scalar(issue.identifier.clone()));

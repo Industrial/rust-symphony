@@ -32,6 +32,7 @@ pub enum WorktreeError {
 
 /// True if `path` is a git worktree (has a `.git` file containing "gitdir:").
 fn is_git_worktree(path: &Path) -> bool {
+  tracing::trace!("is_git_worktree");
   let git_file = path.join(".git");
   let meta = match std::fs::metadata(&git_file) {
     Ok(m) => m,
@@ -56,6 +57,7 @@ pub async fn ensure_worktree_dir(
   main_repo_path: &Path,
   branch_name: &str,
 ) -> Result<(PathBuf, bool), WorktreeError> {
+  tracing::trace!("ensure_worktree_dir");
   let path = worktree_path(root, identifier);
   if path.exists() {
     if is_git_worktree(&path) {
@@ -100,6 +102,7 @@ pub async fn ensure_worktree_dir(
 /// Run a hook command with `sh -lc <script>` in the given `cwd`, with a timeout.
 /// On timeout the child process is killed and `WorktreeError::HookTimeout` is returned.
 pub async fn run_hook(script: &str, cwd: &Path, timeout_ms: u64) -> Result<(), WorktreeError> {
+  tracing::trace!("run_hook");
   let mut child = Command::new("sh")
     .args(["-lc", script])
     .current_dir(cwd)

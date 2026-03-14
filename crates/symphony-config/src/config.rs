@@ -51,6 +51,7 @@ pub struct TrackerConfig {
 
 impl TrackerConfig {
   pub fn endpoint_or_default(&self) -> String {
+    tracing::trace!("TrackerConfig::endpoint_or_default");
     self
       .endpoint
       .as_deref()
@@ -60,6 +61,7 @@ impl TrackerConfig {
 
   /// Exclude labels to use when fetching candidates: exclude_labels plus claim_label (required, always included) (SPEC_ADDENDUM_1 A.2.1).
   pub fn effective_exclude_labels(&self) -> Option<Vec<String>> {
+    tracing::trace!("TrackerConfig::effective_exclude_labels");
     let mut base = self.exclude_labels.clone().unwrap_or_default();
     if !base
       .iter()
@@ -72,6 +74,7 @@ impl TrackerConfig {
 
   /// Active issue states for candidate fetch; defaults to `["open"]` if not set.
   pub fn active_states_slice(&self) -> &[String] {
+    tracing::trace!("TrackerConfig::active_states_slice");
     self
       .active_states
       .as_deref()
@@ -80,6 +83,7 @@ impl TrackerConfig {
 
   /// Terminal issue states for reconciliation/cleanup; defaults to `["closed"]` if not set.
   pub fn terminal_states_slice(&self) -> &[String] {
+    tracing::trace!("TrackerConfig::terminal_states_slice");
     self
       .terminal_states
       .as_deref()
@@ -88,6 +92,7 @@ impl TrackerConfig {
 
   /// Base branch for worker branches and PR target (required).
   pub fn effective_pr_base_branch(&self) -> &str {
+    tracing::trace!("TrackerConfig::effective_pr_base_branch");
     &self.pr_base_branch
   }
 }
@@ -119,12 +124,15 @@ pub struct RunnerConfig {
 
 impl RunnerConfig {
   pub fn turn_timeout_ms(&self) -> u64 {
+    tracing::trace!("RunnerConfig::turn_timeout_ms");
     self.turn_timeout_ms.unwrap_or(3_600_000)
   }
   pub fn read_timeout_ms(&self) -> u64 {
+    tracing::trace!("RunnerConfig::read_timeout_ms");
     self.read_timeout_ms.unwrap_or(5_000)
   }
   pub fn stall_timeout_ms(&self) -> u64 {
+    tracing::trace!("RunnerConfig::stall_timeout_ms");
     self.stall_timeout_ms.unwrap_or(300_000)
   }
 }
@@ -137,6 +145,7 @@ pub struct PollingConfig {
 
 impl Default for PollingConfig {
   fn default() -> Self {
+    tracing::trace!("PollingConfig::default");
     Self {
       interval_ms: 30_000,
     }
@@ -164,6 +173,7 @@ pub struct HooksConfig {
 
 impl HooksConfig {
   pub fn timeout_ms(&self) -> u64 {
+    tracing::trace!("HooksConfig::timeout_ms");
     if self.timeout_ms == 0 {
       60_000
     } else {
@@ -183,6 +193,7 @@ pub struct AgentConfig {
 
 impl Default for AgentConfig {
   fn default() -> Self {
+    tracing::trace!("AgentConfig::default");
     Self {
       max_concurrent_agents: 10,
       max_turns: 20,
@@ -209,6 +220,7 @@ pub struct ServiceConfig {
 impl ServiceConfig {
   /// Run before startup and before each dispatch cycle.
   pub fn validate_dispatch(&self) -> Result<(), ConfigValidationError> {
+    tracing::trace!("ServiceConfig::validate_dispatch");
     self
       .tracker
       .validate()

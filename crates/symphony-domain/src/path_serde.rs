@@ -4,10 +4,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::path::{Path, PathBuf};
 
 pub fn serialize<S: Serializer>(p: &Path, s: S) -> Result<S::Ok, S::Error> {
+  tracing::trace!("path_serde::serialize");
   p.to_string_lossy().serialize(s)
 }
 
 pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<PathBuf, D::Error> {
+  tracing::trace!("path_serde::deserialize");
   let s = <String as Deserialize>::deserialize(d)?;
   Ok(PathBuf::from(s))
 }

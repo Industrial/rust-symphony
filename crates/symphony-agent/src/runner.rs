@@ -82,6 +82,7 @@ pub async fn run_agent_codex(
   read_timeout_ms: u64,
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
+  tracing::trace!("run_agent_codex");
   let start = std::time::Instant::now();
   let cwd_abs = worktree_path
     .canonicalize()

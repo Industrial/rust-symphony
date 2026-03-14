@@ -16,6 +16,7 @@ pub fn apply_label_filters(
   include_labels: Option<&[String]>,
   exclude_labels: Option<&[String]>,
 ) -> Vec<Issue> {
+  tracing::trace!("apply_label_filters");
   let mut out = issues;
 
   if let Some(include) = include_labels {
@@ -53,6 +54,7 @@ pub fn issue_passes_label_filters(
   include_labels: Option<&[String]>,
   exclude_labels: Option<&[String]>,
 ) -> bool {
+  tracing::trace!("issue_passes_label_filters");
   if let Some(include) = include_labels {
     if !include.is_empty() {
       let include_lower: std::collections::HashSet<String> =
