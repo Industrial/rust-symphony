@@ -921,6 +921,15 @@ mod tests {
   /// When main_repo_path is set, the orchestrator creates a worktree and the worker process is run with cwd = worktree path.
   #[tokio::test]
   async fn run_worker_to_completion_uses_worktree_and_agent_cwd_is_worktree_path() {
+    // Skip when git is not available (e.g. in Nix build sandbox when symphony is a dependency).
+    if tokio::process::Command::new("git")
+      .arg("--version")
+      .output()
+      .await
+      .is_err()
+    {
+      return;
+    }
     let root = std::env::temp_dir().join("symphony_runner_wt_test");
     let _ = tokio::fs::remove_dir_all(&root).await;
     let main_repo = root.join("main");
