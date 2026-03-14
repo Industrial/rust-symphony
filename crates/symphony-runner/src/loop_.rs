@@ -615,7 +615,11 @@ async fn dispatch_new_candidates(
 /// in progress, have PR, incomplete, require additional work (checks/mentions).
 fn log_ticket_status_churn(state: &OrchestratorState, churn: &TicketChurnSummary) {
   tracing::trace!("log_ticket_status_churn");
-  let running: Vec<&str> = state.running.values().map(|e| e.identifier.as_str()).collect();
+  let running: Vec<&str> = state
+    .running
+    .values()
+    .map(|e| e.identifier.as_str())
+    .collect();
   let retry_queued: Vec<&str> = state
     .retry_attempts
     .values()
@@ -623,10 +627,17 @@ fn log_ticket_status_churn(state: &OrchestratorState, churn: &TicketChurnSummary
     .collect();
   let fix_pr_candidates: Vec<&str> = churn.fix_pr_candidates.iter().map(String::as_str).collect();
   let has_pr: Vec<&str> = churn.has_pr.iter().map(String::as_str).collect();
-  let fix_pr_dispatching: Vec<&str> = churn.fix_pr_dispatching.iter().map(String::as_str).collect();
+  let fix_pr_dispatching: Vec<&str> = churn
+    .fix_pr_dispatching
+    .iter()
+    .map(String::as_str)
+    .collect();
   let fix_pr_waiting: Vec<&str> = churn.fix_pr_waiting.iter().map(String::as_str).collect();
-  let included_for_symphony: Vec<&str> =
-    churn.included_for_symphony.iter().map(String::as_str).collect();
+  let included_for_symphony: Vec<&str> = churn
+    .included_for_symphony
+    .iter()
+    .map(String::as_str)
+    .collect();
   let normal_dispatched: Vec<&str> = churn.normal_dispatched.iter().map(String::as_str).collect();
   // Incomplete = retry_queued (will retry) + fix_pr_waiting (have PR but no trigger yet); may overlap.
   let incomplete: Vec<&str> = retry_queued
