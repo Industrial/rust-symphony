@@ -61,7 +61,7 @@ See https://shopify.github.io/liquid/ for syntax.
 
 **Claim label (Addendum 1):** Add the claim label `symphony-claimed` to this issue as your first step (e.g. `gh issue edit … --add-label symphony-claimed`). That prevents other workers from picking the same issue and survives restarts.
 
-**PR-driven handoff (Addendum 1):** Worker branches MUST be based off the configured base branch (e.g. fetch and checkout `main` or the branch in `workflow.pr_base_branch`, then create `symphony/issue-<number>` from it). When opening a PR, target that same base (e.g. `gh pr create --base {{ workflow.pr_base_branch | default: "main" }} --body "Fixes #N"`). You MUST (1) push your branch, (2) open a PR with body containing "Fixes #N", (3) post a comment on this issue with the PR URL. Do not consider the task complete until all three are done. Use `gh pr create` and `gh issue comment <number> --body "PR: <url>"` if available. Do **not** merge the PR—a human merges; closing the issue happens when the PR is merged. Optionally add the label `pr-open` to the issue when the PR is open.
+**PR-driven handoff (Addendum 1):** Worker branches MUST be based off the configured base branch (e.g. fetch and checkout `main` or the branch in `workflow.pr_base_branch`, then create `symphony/issue-<number>` from it). When opening a PR, target that same base (e.g. `gh pr create --base {{ workflow.pr_base_branch | default: "main" }} --body "Fixes #N"`). You MUST (1) push your branch, (2) open a PR with body containing "Fixes #N", (3) post a comment on this issue with the PR URL, (4) add the `pr-open` label to this issue (e.g. `gh issue edit <number> --add-label pr-open`). Do not consider the task complete until all four are done. Use `gh pr create` and `gh issue comment <number> --body "PR: <url>"` if available. Do **not** merge the PR—a human merges; closing the issue happens when the PR is merged. The orchestrator uses the pr-open label to find issues with an open PR for fix-PR re-dispatch (e.g. when CI fails or someone requests changes).
 
 ---
 
@@ -102,7 +102,7 @@ This is **attempt {{ attempt }}**. A previous run may have been interrupted or f
 5. Run tests and fix any failures (`devenv shell -- moon run :test` as appropriate).
 6. Follow project conventions (see `.cursor/rules`, `docs/`, and existing code).
 7. When done, either:
-   - **PR-driven:** You MUST complete all of: (1) push your branch, (2) open a PR with body "Fixes #N" targeting the base branch (e.g. `gh pr create --base main --body "Fixes #N"` or use `--base {{ workflow.pr_base_branch | default: "main" }}` when the variable is set), (3) post a comment on this issue with the PR link (e.g. `gh issue comment <issue-number> --body "PR: https://github.com/…"`). Do not exit until all three are done. Do not merge the PR—a human merges. Optionally add the `pr_open_label` to the issue when the PR is open. **Or**
+   - **PR-driven:** You MUST complete all of: (1) push your branch, (2) open a PR with body "Fixes #N" targeting the base branch (e.g. `gh pr create --base main --body "Fixes #N"` or use `--base {{ workflow.pr_base_branch | default: "main" }}` when the variable is set), (3) post a comment on this issue with the PR link (e.g. `gh issue comment <issue-number> --body "PR: https://github.com/…"`), (4) add the `pr-open` label to this issue (e.g. `gh issue edit <issue-number> --add-label pr-open`). Do not exit until all four are done. Do not merge the PR—a human merges. **Or**
    - **Direct close:** Summarize in a comment, then **close this issue** (e.g. `gh issue close` or GitHub UI) so the runner stops picking it up. If you cannot close issues, add a clear "ready to close" comment for a maintainer.
 
 ## Before you're done (required for PR-driven flow)
@@ -112,3 +112,4 @@ If you are using the PR-driven handoff, you must complete every item before exit
 - [ ] Branch pushed to origin
 - [ ] PR opened with body containing "Fixes #N" (replace N with the issue number from this ticket)
 - [ ] Comment on this issue with the PR link
+- [ ] Label `pr-open` added to this issue (so the orchestrator can re-dispatch on failing checks or review requests)
