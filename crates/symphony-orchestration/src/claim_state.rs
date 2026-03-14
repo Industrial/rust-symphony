@@ -20,6 +20,7 @@ pub enum ClaimState {
 /// Derive claim state for an issue from orchestrator state.
 /// No separate enum in state: derive from running, claimed, retry_attempts.
 pub fn claim_state(issue_id: &str, state: &OrchestratorState) -> ClaimState {
+  tracing::trace!("claim_state");
   let in_running = state.running.contains_key(issue_id);
   let in_retry = state.retry_attempts.contains_key(issue_id);
   let in_claimed = state.claimed.contains(issue_id);

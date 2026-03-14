@@ -100,6 +100,37 @@ Use **mockall** (or manual mocks) for tracker and workspace; drive the orchestra
 
 ---
 
+## 17.9 Sandbox (Firecracker) integration and E2E
+
+Tests live in `crates/symphony-sandbox/tests/integration_firecracker.rs`. When the required env vars are **not** set, tests skip (return early) and pass, so default `cargo test` is safe in CI.
+
+**How to run sandbox / E2E tests:**
+
+1. **Without kernel/rootfs (skip):**  
+   `devenv shell -- cargo test -p symphony-sandbox --features firecracker --test integration_firecracker`  
+   Both tests skip and pass.
+
+2. **Full run (x86_64-linux only):**  
+   Use the helper script (builds kernel + rootfs via Nix, then runs the tests):
+   ```bash
+   devenv shell -- ./bin/run-sandbox-e2e
+   ```
+   Or set env vars yourself. After building once with `nix build .#vmlinuxFirecracker .#symphony-guest-rootfs`:
+   ```bash
+   export SYMPHONY_SANDBOX_INTEGRATION=1
+   export SYMPHONY_KERNEL_PATH="$(nix path-info .#vmlinuxFirecracker)/vmlinux"
+   export SYMPHONY_ROOTFS_PATH="$(nix path-info .#symphony-guest-rootfs)"
+   devenv shell -- cargo test -p symphony-sandbox --features firecracker --test integration_firecracker
+   ```
+   The kernel image is in the Nix kernel `.dev` output at `…/vmlinux`; the rootfs is the ext4 image from `.#symphony-guest-rootfs`.
+
+**Tests:**
+
+- **run_command_in_vm_stdout_and_exit:** Runs a command in the VM (temp dir as worktree), asserts stdout and exit code.
+- **e2e_sandbox_with_worktree_and_branch:** E2E: creates a git repo, adds a worktree on branch `symphony/issue-e2e`, runs the sandbox with that worktree path and asserts command output (full chain: worktree + branch + sandbox).
+
+---
+
 ## References
 
 - [SPEC.md](SPEC.md) §17 — Test and Validation Matrix

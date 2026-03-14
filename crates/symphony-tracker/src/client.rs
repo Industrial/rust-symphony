@@ -67,6 +67,7 @@ pub struct GitHubApiClient {
 impl GitHubApiClient {
   /// Build a client; errors if api_key is empty or client build fails.
   pub fn new(api_key: &str) -> Result<Self, TrackerError> {
+    tracing::trace!("GitHubApiClient::new");
     if api_key.is_empty() {
       return Err(TrackerError::MissingTrackerApiKey);
     }
@@ -83,6 +84,7 @@ impl GitHubApiClient {
 
   /// Send GET to url with auth and standard headers; caller checks status and parses body.
   pub async fn get(&self, url: &str) -> Result<reqwest::Response, TrackerError> {
+    tracing::trace!("GitHubApiClient::get");
     self
       .client
       .get(url)
@@ -96,18 +98,21 @@ impl GitHubApiClient {
 
   /// Build the GitHub REST URL for repo issues (e.g. .../repos/owner/repo/issues?state=open).
   pub fn repo_issues_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -> String {
+    tracing::trace!("GitHubApiClient::repo_issues_url");
     let base = endpoint.trim_end_matches('/');
     format!("{}/repos/{}/{}/issues{}", base, owner, repo, path_suffix)
   }
 
   /// Build the GitHub REST URL for repo pull requests (e.g. .../repos/owner/repo/pulls?state=open).
   pub fn repo_pulls_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -> String {
+    tracing::trace!("GitHubApiClient::repo_pulls_url");
     let base = endpoint.trim_end_matches('/');
     format!("{}/repos/{}/{}/pulls{}", base, owner, repo, path_suffix)
   }
 
   /// Build the GitHub REST URL for repo commits (e.g. .../repos/owner/repo/commits/ref/check-runs).
   pub fn repo_commits_url(endpoint: &str, owner: &str, repo: &str, path_suffix: &str) -> String {
+    tracing::trace!("GitHubApiClient::repo_commits_url");
     let base = endpoint.trim_end_matches('/');
     format!("{}/repos/{}/{}/commits{}", base, owner, repo, path_suffix)
   }
@@ -115,6 +120,7 @@ impl GitHubApiClient {
 
 /// Parse "owner/repo" into (owner, repo). Returns error if format invalid.
 pub fn parse_repo(repo: &str) -> Result<(String, String), TrackerError> {
+  tracing::trace!("parse_repo");
   let parts: Vec<&str> = repo.split('/').collect();
   if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
     return Err(TrackerError::MissingTrackerRepo);
@@ -124,6 +130,7 @@ pub fn parse_repo(repo: &str) -> Result<(String, String), TrackerError> {
 
 /// Parse "owner/repo#123" to get issue number. Returns None if format invalid.
 pub fn parse_issue_number(identifier: &str) -> Option<u64> {
+  tracing::trace!("parse_issue_number");
   identifier.rsplit_once('#')?.1.parse().ok()
 }
 
@@ -137,6 +144,7 @@ pub async fn fetch_candidate_issues(
   include_labels: Option<&[String]>,
   exclude_labels: Option<&[String]>,
 ) -> Result<Vec<Issue>, TrackerError> {
+  tracing::trace!("fetch_candidate_issues");
   let (owner, repo_name) = parse_repo(repo)?;
   let api = GitHubApiClient::new(api_key)?;
 
@@ -202,6 +210,7 @@ pub async fn fetch_issues_with_label(
   label: &str,
   active_states: &[String],
 ) -> Result<Vec<Issue>, TrackerError> {
+  tracing::trace!("fetch_issues_with_label");
   let (owner, repo_name) = parse_repo(repo)?;
   let api = GitHubApiClient::new(api_key)?;
 
@@ -271,6 +280,7 @@ pub async fn resolve_pr_for_issue(
   issue_number: u64,
   head_branch_pattern: &str,
 ) -> Result<Option<ResolvedPr>, TrackerError> {
+  tracing::trace!("resolve_pr_for_issue");
   let (owner, repo_name) = parse_repo(repo)?;
   let api = GitHubApiClient::new(api_key)?;
 
@@ -319,6 +329,7 @@ pub async fn resolve_pr_for_issue(
 /// (GitHub Checks API conclusions). Returns false for `success`, `skipped`, or when status is not yet completed.
 #[inline]
 pub fn check_run_conclusion_is_failed(conclusion: Option<&str>) -> bool {
+  tracing::trace!("check_run_conclusion_is_failed");
   conclusion.is_some_and(|c| {
     matches!(
       c,
@@ -331,6 +342,7 @@ pub fn check_run_conclusion_is_failed(conclusion: Option<&str>) -> bool {
 /// Values treated as failed: `failure`, `error` (GitHub commit status API).
 #[inline]
 pub fn commit_status_state_is_failed(state: &str) -> bool {
+  tracing::trace!("commit_status_state_is_failed");
   matches!(state, "failure" | "error")
 }
 
@@ -342,6 +354,7 @@ pub async fn fetch_check_runs_for_ref(
   repo: &str,
   ref_: &str,
 ) -> Result<Vec<CheckRunInfo>, TrackerError> {
+  tracing::trace!("fetch_check_runs_for_ref");
   let (owner, repo_name) = parse_repo(repo)?;
   let api = GitHubApiClient::new(api_key)?;
 
@@ -404,6 +417,7 @@ pub async fn fetch_commit_status_for_ref(
   repo: &str,
   ref_: &str,
 ) -> Result<CombinedStatusInfo, TrackerError> {
+  tracing::trace!("fetch_commit_status_for_ref");
   let (owner, repo_name) = parse_repo(repo)?;
   let api = GitHubApiClient::new(api_key)?;
 
@@ -434,6 +448,9 @@ pub async fn fetch_commit_status_for_ref(
 /// **Newness rule (B.5.1):** If `created_after` is Some (ISO8601, e.g. PR `updated_at`), only comments
 /// created after that time count. This implementation uses "comments created after the PR's last update"
 /// to avoid re-dispatch on the same old comment every poll. Alternative: last dispatch time or last seen comment id per issue.
+///
+/// Checks: (1) issue comments (issue_number), (2) PR main-thread comments (issues/pr_number — on GitHub a PR is an issue),
+/// (3) PR review/line comments (pulls/pr_number/comments).
 pub async fn fetch_has_qualifying_mention(
   endpoint: &str,
   api_key: &str,
@@ -443,6 +460,7 @@ pub async fn fetch_has_qualifying_mention(
   mention_handle: &str,
   created_after: Option<&str>,
 ) -> Result<bool, TrackerError> {
+  tracing::trace!("fetch_has_qualifying_mention");
   let (owner, repo_name) = parse_repo(repo)?;
   let api = GitHubApiClient::new(api_key)?;
   let needle = format!("@{}", mention_handle.trim_start_matches('@'));
@@ -459,21 +477,28 @@ pub async fn fetch_has_qualifying_mention(
     true
   };
 
-  let issues_path = format!("/{}/comments?per_page={}", issue_number, PER_PAGE);
-  let url = GitHubApiClient::repo_issues_url(endpoint, &owner, &repo_name, &issues_path);
-  let res = api.get(&url).await?;
-  if res.status().is_success() {
-    let body: Vec<Value> = res
-      .json()
-      .await
-      .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
-    for c in &body {
-      if let (Some(b), Some(created)) = (
-        c.get("body").and_then(|v| v.as_str()),
-        c.get("created_at").and_then(|v| v.as_str()),
-      ) {
-        if check(b, created) {
-          return Ok(true);
+  let issue_nos: Vec<u64> = if pr_number != issue_number {
+    vec![issue_number, pr_number]
+  } else {
+    vec![issue_number]
+  };
+  for issue_no in issue_nos {
+    let issues_path = format!("/{}/comments?per_page={}", issue_no, PER_PAGE);
+    let url = GitHubApiClient::repo_issues_url(endpoint, &owner, &repo_name, &issues_path);
+    let res = api.get(&url).await?;
+    if res.status().is_success() {
+      let body: Vec<Value> = res
+        .json()
+        .await
+        .map_err(|e| TrackerError::GitHubUnknownPayload(e.to_string()))?;
+      for c in &body {
+        if let (Some(b), Some(created)) = (
+          c.get("body").and_then(|v| v.as_str()),
+          c.get("created_at").and_then(|v| v.as_str()),
+        ) {
+          if check(b, created) {
+            return Ok(true);
+          }
         }
       }
     }
@@ -510,6 +535,7 @@ pub async fn fetch_issue_states_by_ids(
   repo: &str,
   identifiers: &[String],
 ) -> Result<Vec<Issue>, TrackerError> {
+  tracing::trace!("fetch_issue_states_by_ids");
   let (owner, repo_name) = parse_repo(repo)?;
   let api = GitHubApiClient::new(api_key)?;
 
@@ -549,6 +575,7 @@ pub async fn fetch_issues_by_states(
   repo: &str,
   states: &[String],
 ) -> Result<Vec<Issue>, TrackerError> {
+  tracing::trace!("fetch_issues_by_states");
   if states.is_empty() {
     return Ok(vec![]);
   }

@@ -22,13 +22,12 @@ const WORKFLOW_RELOAD_POLL_SECS: u64 = 5;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-  tracing_subscriber::fmt()
-    .with_env_filter(
-      tracing_subscriber::EnvFilter::from_default_env()
-        .add_directive("symphony_runner=info".parse()?),
-    )
-    .init();
+  let filter = std::env::var("RUST_LOG")
+    .map(|_| tracing_subscriber::EnvFilter::from_default_env())
+    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("symphony_runner=info"));
+  tracing_subscriber::fmt().with_env_filter(filter).init();
 
+  tracing::trace!("main");
   let cli = Cli::parse();
 
   let resolved_path = resolve_workflow_path(cli.workflow_path.clone())?;

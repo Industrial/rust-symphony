@@ -32,6 +32,7 @@ pub enum WorktreeError {
 
 /// True if `path` is a git worktree (has a `.git` file containing "gitdir:").
 fn is_git_worktree(path: &Path) -> bool {
+  tracing::trace!("is_git_worktree");
   let git_file = path.join(".git");
   let meta = match std::fs::metadata(&git_file) {
     Ok(m) => m,
@@ -47,15 +48,45 @@ fn is_git_worktree(path: &Path) -> bool {
   content.trim_start().starts_with("gitdir:")
 }
 
-/// Ensure the per-issue path exists as a git worktree. Uses `main_repo_path` as the repo to run
-/// `git worktree add <path> -b <branch_name>`. If the path already exists and is a worktree, returns
-/// `(path, false)`. Returns `(path, true)` if the worktree was just created.
+/// Best-effort fetch from origin so that remote branches (e.g. fix-PR branch) exist locally.
+/// Logs and continues on failure (no remote, network error, etc.).
+async fn fetch_origin(main_repo_path: &Path) {
+  tracing::trace!("fetch_origin");
+  let output = match Command::new("git")
+    .args(["fetch", "origin"])
+    .current_dir(main_repo_path)
+    .output()
+    .await
+  {
+    Ok(o) => o,
+    Err(e) => {
+      tracing::debug!(%e, "git fetch origin failed (e.g. no remote), continuing");
+      return;
+    }
+  };
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    tracing::debug!(%stderr, "git fetch origin failed, continuing");
+  }
+}
+
+/// True if git's stderr indicates the branch already exists (so we should use existing branch).
+fn is_branch_already_exists(stderr: &str) -> bool {
+  let s = stderr.trim();
+  s.contains("already exists") && s.contains("branch")
+}
+
+/// Ensure the per-issue path exists as a git worktree. Fetches from origin (best-effort), then
+/// runs `git worktree add <path> -b <branch_name>`. If the branch already exists (e.g. fix-PR),
+/// runs `git worktree add <path> <branch_name>` instead. If the path already exists and is a
+/// worktree, returns `(path, false)`. Returns `(path, true)` if the worktree was just created.
 pub async fn ensure_worktree_dir(
   root: &Path,
   identifier: &str,
   main_repo_path: &Path,
   branch_name: &str,
 ) -> Result<(PathBuf, bool), WorktreeError> {
+  tracing::trace!("ensure_worktree_dir");
   let path = worktree_path(root, identifier);
   if path.exists() {
     if is_git_worktree(&path) {
@@ -83,6 +114,9 @@ pub async fn ensure_worktree_dir(
       main_repo_path.to_path_buf(),
     ));
   }
+
+  fetch_origin(main_repo_path).await;
+
   let path_str = path.to_string_lossy();
   let output = Command::new("git")
     .args(["worktree", "add", path_str.as_ref(), "-b", branch_name])
@@ -90,9 +124,25 @@ pub async fn ensure_worktree_dir(
     .output()
     .await
     .map_err(|e| WorktreeError::GitWorktreeAdd(e.to_string()))?;
+
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
-    return Err(WorktreeError::GitWorktreeAdd(stderr.to_string()));
+    let stderr_str = stderr.to_string();
+    if is_branch_already_exists(&stderr_str) {
+      tracing::trace!(%branch_name, "branch already exists, adding worktree for existing branch");
+      let retry = Command::new("git")
+        .args(["worktree", "add", path_str.as_ref(), branch_name])
+        .current_dir(main_repo_path)
+        .output()
+        .await
+        .map_err(|e| WorktreeError::GitWorktreeAdd(e.to_string()))?;
+      if !retry.status.success() {
+        let retry_stderr = String::from_utf8_lossy(&retry.stderr);
+        return Err(WorktreeError::GitWorktreeAdd(retry_stderr.to_string()));
+      }
+      return Ok((path, true));
+    }
+    return Err(WorktreeError::GitWorktreeAdd(stderr_str));
   }
   Ok((path, true))
 }
@@ -100,6 +150,7 @@ pub async fn ensure_worktree_dir(
 /// Run a hook command with `sh -lc <script>` in the given `cwd`, with a timeout.
 /// On timeout the child process is killed and `WorktreeError::HookTimeout` is returned.
 pub async fn run_hook(script: &str, cwd: &Path, timeout_ms: u64) -> Result<(), WorktreeError> {
+  tracing::trace!("run_hook");
   let mut child = Command::new("sh")
     .args(["-lc", script])
     .current_dir(cwd)
@@ -218,6 +269,50 @@ mod tests {
     let bad_main = root.join("nonexistent");
     let r = ensure_worktree_dir(&root, "o/r#1", &bad_main, "symphony/issue-1").await;
     assert!(matches!(r, Err(WorktreeError::MainRepoNotFound(_))));
+    let _ = tokio::fs::remove_dir_all(&root).await;
+  }
+
+  #[tokio::test]
+  async fn ensure_worktree_dir_reuses_existing_branch() {
+    let root = std::env::temp_dir().join("symphony_wt_existing_branch");
+    let _ = tokio::fs::remove_dir_all(&root).await;
+    let main_repo = root.join("main");
+    tokio::fs::create_dir_all(&main_repo).await.unwrap();
+    Command::new("git")
+      .args(["init"])
+      .current_dir(&main_repo)
+      .output()
+      .await
+      .unwrap();
+    Command::new("git")
+      .args(["commit", "--allow-empty", "-m", "root"])
+      .current_dir(&main_repo)
+      .output()
+      .await
+      .unwrap();
+    Command::new("git")
+      .args(["branch", "symphony/issue-99"])
+      .current_dir(&main_repo)
+      .output()
+      .await
+      .unwrap();
+    let (path, created) =
+      ensure_worktree_dir(&root, "owner/repo#99", &main_repo, "symphony/issue-99")
+        .await
+        .unwrap();
+    assert!(created);
+    assert!(path.is_dir());
+    assert!(is_git_worktree(&path));
+    let branch_out = Command::new("git")
+      .args(["branch", "--show-current"])
+      .current_dir(&path)
+      .output()
+      .await
+      .unwrap();
+    let branch = String::from_utf8_lossy(&branch_out.stdout)
+      .trim()
+      .to_string();
+    assert_eq!(branch, "symphony/issue-99");
     let _ = tokio::fs::remove_dir_all(&root).await;
   }
 }

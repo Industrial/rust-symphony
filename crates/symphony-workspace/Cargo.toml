@@ -9,6 +9,7 @@ license.workspace = true
 symphony-domain = { workspace = true }
 thiserror = "2"
 tokio = { version = "1", features = ["fs", "process", "rt", "macros", "time"] }
+tracing = "0.1"
 
 [dev-dependencies]
 tempfile = "3"

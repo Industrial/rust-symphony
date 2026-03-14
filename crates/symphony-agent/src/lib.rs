@@ -6,6 +6,7 @@
 mod acp;
 mod protocol;
 mod runner;
+mod spawn;
 mod stream_cli;
 
 pub use protocol::{AgentMessage, parse_line};
@@ -25,6 +26,7 @@ pub enum RunnerProtocol {
 }
 
 /// Run the agent using the configured protocol (codex or acp).
+/// When `sandbox_config` is Some, the agent runs inside a Firecracker microVM.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_agent_with_protocol(
   protocol: RunnerProtocol,
@@ -36,7 +38,9 @@ pub async fn run_agent_with_protocol(
   turn_timeout_ms: u64,
   read_timeout_ms: u64,
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
+  sandbox_config: Option<&symphony_config::FirecrackerSandboxConfig>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
+  tracing::trace!("run_agent_with_protocol");
   match protocol {
     RunnerProtocol::Codex => {
       run_agent_codex(
@@ -48,6 +52,7 @@ pub async fn run_agent_with_protocol(
         turn_timeout_ms,
         read_timeout_ms,
         update_tx,
+        sandbox_config,
       )
       .await
     }
@@ -61,6 +66,7 @@ pub async fn run_agent_with_protocol(
         turn_timeout_ms,
         read_timeout_ms,
         update_tx,
+        sandbox_config,
       )
       .await
     }
@@ -74,6 +80,7 @@ pub async fn run_agent_with_protocol(
         turn_timeout_ms,
         read_timeout_ms,
         update_tx,
+        sandbox_config,
       )
       .await
     }

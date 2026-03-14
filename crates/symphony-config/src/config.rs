@@ -51,6 +51,7 @@ pub struct TrackerConfig {
 
 impl TrackerConfig {
   pub fn endpoint_or_default(&self) -> String {
+    tracing::trace!("TrackerConfig::endpoint_or_default");
     self
       .endpoint
       .as_deref()
@@ -60,6 +61,7 @@ impl TrackerConfig {
 
   /// Exclude labels to use when fetching candidates: exclude_labels plus claim_label (required, always included) (SPEC_ADDENDUM_1 A.2.1).
   pub fn effective_exclude_labels(&self) -> Option<Vec<String>> {
+    tracing::trace!("TrackerConfig::effective_exclude_labels");
     let mut base = self.exclude_labels.clone().unwrap_or_default();
     if !base
       .iter()
@@ -72,6 +74,7 @@ impl TrackerConfig {
 
   /// Active issue states for candidate fetch; defaults to `["open"]` if not set.
   pub fn active_states_slice(&self) -> &[String] {
+    tracing::trace!("TrackerConfig::active_states_slice");
     self
       .active_states
       .as_deref()
@@ -80,6 +83,7 @@ impl TrackerConfig {
 
   /// Terminal issue states for reconciliation/cleanup; defaults to `["closed"]` if not set.
   pub fn terminal_states_slice(&self) -> &[String] {
+    tracing::trace!("TrackerConfig::terminal_states_slice");
     self
       .terminal_states
       .as_deref()
@@ -88,6 +92,7 @@ impl TrackerConfig {
 
   /// Base branch for worker branches and PR target (required).
   pub fn effective_pr_base_branch(&self) -> &str {
+    tracing::trace!("TrackerConfig::effective_pr_base_branch");
     &self.pr_base_branch
   }
 }
@@ -103,6 +108,42 @@ pub enum RunnerType {
   Cli,
 }
 
+/// Sandbox mode for agent runs: none (host process) or Firecracker microVM.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SandboxMode {
+  /// Run agent on host (default).
+  #[default]
+  None,
+  /// Run agent inside a Firecracker microVM with worktree mounted; requires kernel/rootfs config.
+  Firecracker,
+}
+
+/// Firecracker sandbox assets and paths (when runner.sandbox is firecracker).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FirecrackerSandboxConfig {
+  /// Path to the kernel image (e.g. vmlinux).
+  pub kernel_path: std::path::PathBuf,
+  /// Path to the rootfs image (e.g. ext4 or squashfs).
+  pub rootfs_path: std::path::PathBuf,
+  /// Path inside the guest where the worktree is mounted (e.g. /worktree).
+  #[serde(default = "default_worktree_guest_path")]
+  pub worktree_guest_path: std::path::PathBuf,
+  /// Vsock port the guest agent-runner listens on (host connects to guest_cid:port).
+  #[serde(default = "default_vsock_port")]
+  pub vsock_port: u32,
+}
+
+fn default_worktree_guest_path() -> std::path::PathBuf {
+  tracing::trace!("default_worktree_guest_path");
+  std::path::Path::new("/worktree").to_path_buf()
+}
+
+fn default_vsock_port() -> u32 {
+  tracing::trace!("default_vsock_port");
+  5000
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct RunnerConfig {
   #[validate(length(min = 1, message = "runner.command required"))]
@@ -112,6 +153,13 @@ pub struct RunnerConfig {
   #[serde(rename = "type", default)]
   pub runner_type: RunnerType,
 
+  /// Sandbox mode: "none" (default) or "firecracker". When firecracker, runner.firecracker must provide kernel_path and rootfs_path.
+  #[serde(default)]
+  pub sandbox: SandboxMode,
+
+  /// Firecracker sandbox assets; required when sandbox is firecracker.
+  pub firecracker: Option<FirecrackerSandboxConfig>,
+
   pub turn_timeout_ms: Option<u64>,
   pub read_timeout_ms: Option<u64>,
   pub stall_timeout_ms: Option<u64>,
@@ -119,12 +167,15 @@ pub struct RunnerConfig {
 
 impl RunnerConfig {
   pub fn turn_timeout_ms(&self) -> u64 {
+    tracing::trace!("RunnerConfig::turn_timeout_ms");
     self.turn_timeout_ms.unwrap_or(3_600_000)
   }
   pub fn read_timeout_ms(&self) -> u64 {
+    tracing::trace!("RunnerConfig::read_timeout_ms");
     self.read_timeout_ms.unwrap_or(5_000)
   }
   pub fn stall_timeout_ms(&self) -> u64 {
+    tracing::trace!("RunnerConfig::stall_timeout_ms");
     self.stall_timeout_ms.unwrap_or(300_000)
   }
 }
@@ -137,6 +188,7 @@ pub struct PollingConfig {
 
 impl Default for PollingConfig {
   fn default() -> Self {
+    tracing::trace!("PollingConfig::default");
     Self {
       interval_ms: 30_000,
     }
@@ -164,6 +216,7 @@ pub struct HooksConfig {
 
 impl HooksConfig {
   pub fn timeout_ms(&self) -> u64 {
+    tracing::trace!("HooksConfig::timeout_ms");
     if self.timeout_ms == 0 {
       60_000
     } else {
@@ -183,6 +236,7 @@ pub struct AgentConfig {
 
 impl Default for AgentConfig {
   fn default() -> Self {
+    tracing::trace!("AgentConfig::default");
     Self {
       max_concurrent_agents: 10,
       max_turns: 20,
@@ -209,6 +263,7 @@ pub struct ServiceConfig {
 impl ServiceConfig {
   /// Run before startup and before each dispatch cycle.
   pub fn validate_dispatch(&self) -> Result<(), ConfigValidationError> {
+    tracing::trace!("ServiceConfig::validate_dispatch");
     self
       .tracker
       .validate()
@@ -255,6 +310,8 @@ mod tests {
       runner: RunnerConfig {
         command: "codex app-server".into(),
         runner_type: RunnerType::Codex,
+        sandbox: SandboxMode::None,
+        firecracker: None,
         turn_timeout_ms: None,
         read_timeout_ms: None,
         stall_timeout_ms: None,
@@ -287,6 +344,8 @@ mod tests {
     let r = RunnerConfig {
       command: "c".into(),
       runner_type: RunnerType::Codex,
+      sandbox: SandboxMode::None,
+      firecracker: None,
       turn_timeout_ms: Some(100),
       read_timeout_ms: None,
       stall_timeout_ms: Some(200),

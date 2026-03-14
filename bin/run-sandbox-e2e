@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Build Firecracker kernel and guest rootfs (Nix), then run sandbox integration and E2E tests.
+# Only works on x86_64-linux (flake restricts kernel/rootfs to that system).
+# Requires: nix, devenv, Firecracker available to the process (e.g. in PATH or via Nix).
+set -euo pipefail
+
+case "$(uname -m)" in
+  x86_64)
+    ;;
+  *)
+    echo "Sandbox E2E requires x86_64-linux (kernel/rootfs are only built for that system)."
+    exit 1
+    ;;
+esac
+
+SCRIPT_DIR="${BASH_SOURCE%/*}"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
+
+echo "> Building Nix artifacts (kernel + guest rootfs + firecracker)..."
+nix build .#vmlinuxFirecracker .#symphony-guest-rootfs .#firecracker --no-link
+
+KERNEL_DEV="$(nix path-info .#vmlinuxFirecracker)"
+ROOTFS="$(nix path-info .#symphony-guest-rootfs)"
+FIRECRACKER_BIN="$(nix path-info .#firecracker)/bin/firecracker"
+
+# Nix kernel .dev output contains vmlinux at $out/vmlinux
+SYMPHONY_KERNEL_PATH="$KERNEL_DEV/vmlinux"
+SYMPHONY_ROOTFS_PATH="$ROOTFS"
+
+if [[ ! -f "$SYMPHONY_KERNEL_PATH" ]]; then
+  echo "Expected kernel at $SYMPHONY_KERNEL_PATH not found."
+  exit 1
+fi
+if [[ ! -f "$SYMPHONY_ROOTFS_PATH" ]]; then
+  echo "Expected rootfs at $SYMPHONY_ROOTFS_PATH not found."
+  exit 1
+fi
+if [[ ! -x "$FIRECRACKER_BIN" ]]; then
+  echo "Expected firecracker at $FIRECRACKER_BIN not found or not executable."
+  exit 1
+fi
+
+echo "> Kernel: $SYMPHONY_KERNEL_PATH"
+echo "> Rootfs: $SYMPHONY_ROOTFS_PATH"
+echo "> Firecracker: $FIRECRACKER_BIN"
+echo "> Running sandbox integration + E2E tests..."
+
+export SYMPHONY_SANDBOX_INTEGRATION=1
+export SYMPHONY_KERNEL_PATH
+export SYMPHONY_ROOTFS_PATH
+export SYMPHONY_FIRECRACKER="$FIRECRACKER_BIN"
+
+devenv shell -- cargo test -p symphony-sandbox --features firecracker --test integration_firecracker -- --test-threads=1

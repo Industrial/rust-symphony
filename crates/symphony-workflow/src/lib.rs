@@ -18,6 +18,7 @@ use std::path::PathBuf;
 pub fn load_workflow_file(
   explicit: Option<PathBuf>,
 ) -> Result<symphony_domain::WorkflowDefinition, WorkflowError> {
+  tracing::trace!("load_workflow_file");
   let path = resolve_workflow_path(explicit)?;
   let content = std::fs::read_to_string(&path).map_err(WorkflowError::Io)?;
   load_workflow(&content)

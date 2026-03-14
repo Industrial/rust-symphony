@@ -15,6 +15,7 @@ pub fn spawn_workflow_reload_task(
   workflow_path_arg: Option<PathBuf>,
   poll_secs: u64,
 ) -> tokio::task::JoinHandle<()> {
+  tracing::trace!("spawn_workflow_reload_task");
   tokio::spawn(async move {
     let mut last_mtime = None::<std::time::SystemTime>;
     loop {
@@ -86,6 +87,8 @@ mod tests {
       runner: symphony_config::RunnerConfig {
         command: "echo".into(),
         runner_type: symphony_config::RunnerType::Codex,
+        sandbox: symphony_config::SandboxMode::None,
+        firecracker: None,
         turn_timeout_ms: None,
         read_timeout_ms: None,
         stall_timeout_ms: None,

@@ -32,6 +32,19 @@ jobs:
         with:
           targets: ":format :check :build :test :audit :check-docs"
           use-affected: "true"
+      - name: Test guest-runner and sandbox (firecracker feature)
+        shell: bash
+        env:
+          MOON_TOOLCHAIN_FORCE_GLOBALS: rust
+        run: |
+          devenv shell -- cargo test -p symphony-guest-runner -p symphony-sandbox --features firecracker
+      - name: Sandbox E2E (optional; requires x86_64, KVM, Nix kernel/rootfs)
+        shell: bash
+        env:
+          MOON_TOOLCHAIN_FORCE_GLOBALS: rust
+        run: |
+          devenv shell -- moon run :test-e2e
+        continue-on-error: true
       - name: Run coverage
         shell: bash
         env:

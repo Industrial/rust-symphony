@@ -9,16 +9,18 @@ use std::time::Duration;
 
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 use tokio::time::timeout;
 
 use crate::runner::{AgentExitReason, AgentRunOutcome, AgentRunnerError, AgentRunnerUpdate};
+use crate::spawn::spawn_agent_process;
+use symphony_config::FirecrackerSandboxConfig;
 
 /// Maximum line length when reading agent stdout (10 MiB per SPEC).
 const MAX_LINE_LEN: usize = 10 * 1024 * 1024;
 
 /// Split command string into [program, arg1, arg2, ...] respecting double/single quotes (shell-like).
 fn split_command(cmd: &str) -> Vec<&str> {
+  tracing::trace!("split_command");
   let mut out = Vec::new();
   let mut rest = cmd.trim();
   while !rest.is_empty() {
@@ -76,6 +78,7 @@ mod tests {
 /// Run the agent in Cursor CLI non-interactive mode: pass prompt as argument, read stream-json from stdout.
 /// Command string is split into argv (respecting quotes); prompt is appended as the last argument.
 /// Success: we see a line with `type: "result", subtype: "success"`.
+/// When sandbox_config is Some, the agent runs inside a Firecracker microVM (CLI mode runs `command prompt` in the guest).
 #[allow(clippy::too_many_arguments)]
 pub async fn run_agent_cli(
   command: &str,
@@ -86,7 +89,9 @@ pub async fn run_agent_cli(
   turn_timeout_ms: u64,
   _read_timeout_ms: u64,
   update_tx: Option<tokio::sync::mpsc::UnboundedSender<AgentRunnerUpdate>>,
+  sandbox_config: Option<&FirecrackerSandboxConfig>,
 ) -> Result<AgentRunOutcome, AgentRunnerError> {
+  tracing::trace!("run_agent_cli");
   let start = std::time::Instant::now();
 
   let argv = split_command(command);
@@ -94,19 +99,43 @@ pub async fn run_agent_cli(
     .split_first()
     .ok_or_else(|| AgentRunnerError::Handshake("runner.command is empty".into()))?;
 
-  let mut child = Command::new(program)
-    .args(args)
-    .arg(prompt)
-    .current_dir(worktree_path)
-    .stdin(std::process::Stdio::null())
-    .stdout(std::process::Stdio::piped())
-    .stderr(std::process::Stdio::piped())
-    .spawn()
-    .map_err(AgentRunnerError::Spawn)?;
+  // When sandbox is set we run the full "program args prompt" via spawn_agent_process (guest runs sh -lc).
+  // When sandbox is None we spawn program + args + prompt directly (no shell).
+  let mut handle = if let Some(sandbox_cfg) = sandbox_config {
+    let run_cmd = format!("{} {} {}", program, args.join(" "), prompt);
+    spawn_agent_process(run_cmd.trim(), worktree_path, Some(sandbox_cfg)).await?
+  } else {
+    let mut child = tokio::process::Command::new(program)
+      .args(args)
+      .arg(prompt)
+      .current_dir(worktree_path)
+      .stdin(std::process::Stdio::null())
+      .stdout(std::process::Stdio::piped())
+      .stderr(std::process::Stdio::piped())
+      .spawn()
+      .map_err(AgentRunnerError::Spawn)?;
+    let (tx, wait_rx) = tokio::sync::oneshot::channel();
+    let stdin = None;
+    let stdout = child
+      .stdout
+      .take()
+      .map(|s| Box::new(s) as Box<dyn tokio::io::AsyncRead + Send + Unpin>);
+    let stderr = child
+      .stderr
+      .take()
+      .map(|s| Box::new(s) as Box<dyn tokio::io::AsyncRead + Send + Unpin>);
+    tokio::spawn(async move {
+      let status = child
+        .wait()
+        .await
+        .map_err(|e| AgentRunnerError::ProcessExit(e.to_string()));
+      let _ = tx.send(status);
+    });
+    crate::spawn::AgentProcessHandle::from_parts(stdin, stdout, stderr, wait_rx)
+  };
 
-  let stdout = child.stdout.take().ok_or(AgentRunnerError::StdoutTaken)?;
-  let stderr = child.stderr.take();
-  if let Some(stderr) = stderr {
+  let stdout = handle.stdout.take().ok_or(AgentRunnerError::StdoutTaken)?;
+  if let Some(stderr) = handle.stderr.take() {
     tokio::spawn(async move {
       let mut reader = BufReader::new(stderr);
       let mut line = String::new();
@@ -200,11 +229,10 @@ pub async fn run_agent_cli(
   };
 
   // Cursor CLI can occasionally fail to terminate after emitting result (see cursor/cursor#3588)
-  let status = match timeout(Duration::from_secs(10), child.wait()).await {
+  let status = match timeout(Duration::from_secs(10), handle.wait()).await {
     Ok(Ok(s)) => s,
-    Ok(Err(e)) => return Err(AgentRunnerError::ProcessExit(e.to_string())),
+    Ok(Err(e)) => return Err(e),
     Err(_) => {
-      let _ = child.kill().await;
       if exit_reason == AgentExitReason::Normal {
         return Ok(AgentRunOutcome {
           exit_reason,

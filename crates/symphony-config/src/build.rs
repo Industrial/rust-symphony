@@ -6,8 +6,8 @@ use serde::Deserialize;
 
 use crate::ConfigError;
 use crate::config::{
-  AgentConfig, HooksConfig, PollingConfig, RunnerConfig, RunnerType, ServiceConfig, TrackerConfig,
-  WorktreeConfig,
+  AgentConfig, FirecrackerSandboxConfig, HooksConfig, PollingConfig, RunnerConfig, RunnerType,
+  SandboxMode, ServiceConfig, TrackerConfig, WorktreeConfig,
 };
 use crate::resolve::{resolve_var, resolve_worktree_root};
 
@@ -36,9 +36,20 @@ struct RawRunner {
   command: Option<String>,
   #[serde(rename = "type")]
   runner_type: Option<String>,
+  sandbox: Option<String>,
+  firecracker: Option<RawFirecrackerSandbox>,
   turn_timeout_ms: Option<u64>,
   read_timeout_ms: Option<u64>,
   stall_timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct RawFirecrackerSandbox {
+  kernel_path: Option<String>,
+  rootfs_path: Option<String>,
+  worktree_guest_path: Option<String>,
+  vsock_port: Option<u32>,
 }
 
 /// Raw polling map.
@@ -93,6 +104,7 @@ struct RawConfig {
 /// Build ServiceConfig from workflow front matter (e.g. `WorkflowDefinition.config`).
 /// Applies env resolution to `tracker.api_key` and `worktree.root`, then validates.
 pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, ConfigError> {
+  tracing::trace!("from_workflow_config");
   let raw: RawConfig =
     serde_json::from_value(value.clone()).map_err(|e| ConfigError::Deserialize(e.to_string()))?;
 
@@ -157,13 +169,45 @@ pub fn from_workflow_config(value: &serde_json::Value) -> Result<ServiceConfig, 
     _ => RunnerType::Codex,
   };
 
+  let sandbox = match runner_raw.sandbox.as_deref() {
+    Some("firecracker") => SandboxMode::Firecracker,
+    _ => SandboxMode::None,
+  };
+
+  let firecracker = runner_raw.firecracker.and_then(|raw| {
+    let kernel_path = raw
+      .kernel_path
+      .and_then(|s| resolve_worktree_root(s.trim()).ok())?;
+    let rootfs_path = raw
+      .rootfs_path
+      .and_then(|s| resolve_worktree_root(s.trim()).ok())?;
+    Some(FirecrackerSandboxConfig {
+      kernel_path,
+      rootfs_path,
+      worktree_guest_path: raw
+        .worktree_guest_path
+        .map(|s| std::path::PathBuf::from(s.trim()))
+        .unwrap_or_else(|| std::path::Path::new("/worktree").to_path_buf()),
+      vsock_port: raw.vsock_port.unwrap_or(5000),
+    })
+  });
+
   let runner_config = RunnerConfig {
     command,
     runner_type,
+    sandbox,
+    firecracker,
     turn_timeout_ms: runner_raw.turn_timeout_ms.or(Some(3_600_000)),
     read_timeout_ms: runner_raw.read_timeout_ms.or(Some(5_000)),
     stall_timeout_ms: runner_raw.stall_timeout_ms.or(Some(300_000)),
   };
+
+  if runner_config.sandbox == SandboxMode::Firecracker && runner_config.firecracker.is_none() {
+    return Err(ConfigError::InvalidConfig(
+      "runner.sandbox is firecracker but runner.firecracker (kernel_path, rootfs_path) is missing or invalid"
+        .into(),
+    ));
+  }
 
   let polling_config = raw
     .polling

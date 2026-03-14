@@ -16,6 +16,7 @@ static FRONT_MATTER_RE: Lazy<Regex> =
 /// Split content into optional YAML block and body.
 /// If the file does not start with `---`, returns `(None, content.trim())`.
 fn split_front_matter(content: &str) -> (Option<&str>, &str) {
+  tracing::trace!("split_front_matter");
   if let Some(caps) = FRONT_MATTER_RE.captures(content) {
     let yaml = caps.get(1).map(|m| m.as_str());
     let body = caps.get(2).map(|m| m.as_str().trim()).unwrap_or("");
@@ -30,6 +31,7 @@ fn split_front_matter(content: &str) -> (Option<&str>, &str) {
 /// - No leading `---` → entire file is prompt body; config = empty map.
 /// - YAML must decode to a map; non-map → `WorkflowFrontMatterNotAMap`.
 pub fn load_workflow(content: &str) -> Result<WorkflowDefinition, WorkflowError> {
+  tracing::trace!("load_workflow");
   let (yaml_opt, body) = split_front_matter(content);
   let config = match yaml_opt {
     None => serde_json::Value::Object(Default::default()),

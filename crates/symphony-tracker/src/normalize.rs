@@ -13,6 +13,7 @@ pub fn github_issue_to_domain(
   owner: &str,
   repo: &str,
 ) -> Result<Issue, TrackerError> {
+  tracing::trace!("github_issue_to_domain");
   let obj = value
     .as_object()
     .ok_or_else(|| TrackerError::GitHubUnknownPayload("expected object".into()))?;

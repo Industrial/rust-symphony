@@ -11,12 +11,14 @@ use crate::scheduling::retry_delay_ms;
 
 /// Number of slots available for new dispatch (SPEC §7.4).
 pub fn available_slots(state: &OrchestratorState, max_concurrent: u32) -> u32 {
+  tracing::trace!("available_slots");
   let running = state.running.len() as u32;
   max_concurrent.saturating_sub(running)
 }
 
 /// Pre-dispatch check: issue not claimed, not running, and at least one slot (SPEC §7.4).
 pub fn can_dispatch(state: &OrchestratorState, issue_id: &str, max_concurrent: u32) -> bool {
+  tracing::trace!("can_dispatch");
   !state.claimed.contains(issue_id)
     && !state.running.contains_key(issue_id)
     && available_slots(state, max_concurrent) > 0
@@ -34,6 +36,7 @@ pub fn apply_worker_exit(
   now_ms: u64,
   max_retry_backoff_ms: u64,
 ) {
+  tracing::trace!("apply_worker_exit");
   let entry = match state.running.remove(&issue_id) {
     Some(e) => e,
     None => return,
@@ -79,6 +82,7 @@ pub fn apply_agent_update(
   issue_id: &str,
   update: AgentUpdatePayload,
 ) {
+  tracing::trace!("apply_agent_update");
   let Some(entry) = state.running.get_mut(issue_id) else {
     return;
   };
@@ -113,12 +117,14 @@ pub fn apply_agent_update(
 /// Release an issue: remove from claimed and retry_attempts (and optionally from running).
 /// Used when reconciliation determines the issue is terminal or no longer eligible.
 pub fn release_claim(state: &mut OrchestratorState, issue_id: &str) {
+  tracing::trace!("release_claim");
   state.claimed.remove(issue_id);
   state.retry_attempts.remove(issue_id);
 }
 
 /// Remove a retry entry when dispatching the issue (claim stays; issue moves to running elsewhere).
 pub fn remove_retry_on_dispatch(state: &mut OrchestratorState, issue_id: &str) {
+  tracing::trace!("remove_retry_on_dispatch");
   state.retry_attempts.remove(issue_id);
 }
 

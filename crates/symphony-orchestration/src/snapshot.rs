@@ -29,6 +29,7 @@ pub struct OrchestratorSnapshot {
 
 /// Build a snapshot from current orchestrator state.
 pub fn snapshot_from_state(state: &OrchestratorState) -> OrchestratorSnapshot {
+  tracing::trace!("snapshot_from_state");
   let running: Vec<SessionRow> = state
     .running
     .iter()

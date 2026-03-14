@@ -25,6 +25,7 @@ async fn codex_handshake_with_fake_subprocess_completes_normally() {
     10_000,
     5_000,
     None,
+    None, // sandbox_config: host process
   )
   .await
   .expect("run_agent_codex");
