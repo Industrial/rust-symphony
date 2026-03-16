@@ -28,7 +28,7 @@ symphony-tracker = { workspace = true, features = ["client"] }
 symphony-workspace = { workspace = true }
 
 [dev-dependencies]
-mockall = "0.13"
+mockall = "0.14"
 serde_json = "1"
 tempfile = "3"
 tokio = { version = "1", features = ["test-util", "rt", "macros"] }
