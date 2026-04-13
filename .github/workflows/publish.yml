@@ -155,7 +155,7 @@ jobs:
             echo "📚 **Documentation:** See [README](https://github.com/Industrial/rust-symphony#readme)"
           } >> CHANGELOG.md
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: v${{ needs.validate.outputs.version }}
           body_path: CHANGELOG.md
